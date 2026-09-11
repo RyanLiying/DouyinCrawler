@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediaCrawler 配置工具 — 非遗研究（抖音）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    pre {
+      white-space: pre;
+      word-wrap: normal;
+    }
+    .code-block {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .log-line {
+      animation: fadeIn 0.1s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .tab-btn.active {
+      border-bottom-color: #2563eb;
+      color: #2563eb;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">MediaCrawler 配置与运行工具</h1>
+      <p class="mt-2 text-sm sm:text-base text-gray-600">
+        面向抖音非遗研究的可视化配置。填写表单后，可直接在页面中启动爬虫，无需覆盖原配置文件。
+      </p>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <!-- Instructions -->
+    <section class="mb-8 bg-indigo-50 border border-indigo-100 rounded-lg p-4 sm:p-5">
+      <h2 class="text-lg font-semibold text-indigo-900 mb-2">使用说明</h2>
+      <ol class="list-decimal list-inside text-sm text-indigo-900 space-y-1">
+        <li>在<strong>「字段选择」</strong>Tab 中勾选需要额外采集的字段。</li>
+        <li>在<strong>「基础配置」</strong>中调整爬虫参数。默认已填好非遗关键词。</li>
+        <li>右侧会实时预览生成的 <code>base_config.py</code> 和 <code>dy_config.py</code>。</li>
+        <li>点击<strong>「启动爬虫」</strong>，后端会创建临时配置文件并运行 MediaCrawler。</li>
+        <li>运行日志会实时显示在页面底部的终端区域。</li>
+        <li>如需停止，点击<strong>「停止爬虫」</strong>。</li>
+      </ol>
+      <p class="mt-2 text-xs text-indigo-700">
+        提示：首次使用前请确保已启动后端服务（<code>python server.py</code>），并开启 Chrome 远程调试。
+      </p>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+      <!-- Form -->
+      <section class="lg:col-span-7 space-y-6">
+
+        <!-- Tabs -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div class="flex border-b border-gray-200 overflow-x-auto">
+            <button type="button" class="tab-btn active px-4 py-3 text-sm text-gray-600 border-b-2 border-transparent whitespace-nowrap hover:text-gray-900" data-tab="basic">基础配置</button>
+            <button type="button" class="tab-btn px-4 py-3 text-sm text-gray-600 border-b-2 border-transparent whitespace-nowrap hover:text-gray-900" data-tab="fields">字段选择</button>
+            <button type="button" class="tab-btn px-4 py-3 text-sm text-gray-600 border-b-2 border-transparent whitespace-nowrap hover:text-gray-900" data-tab="douyin">抖音专用</button>
+            <button type="button" class="tab-btn px-4 py-3 text-sm text-gray-600 border-b-2 border-transparent whitespace-nowrap hover:text-gray-900" data-tab="antidetect">反检测与性能</button>
+            <button type="button" class="tab-btn px-4 py-3 text-sm text-gray-600 border-b-2 border-transparent whitespace-nowrap hover:text-gray-900" data-tab="output">输出与评论</button>
+          </div>
+
+          <!-- Tab: Basic -->
+          <div id="tab-basic" class="tab-content p-5 sm:p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>基础配置
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">平台</label>
+                <select id="PLATFORM" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm">
+                  <option value="xhs">xhs（小红书）</option>
+                  <option value="dy" selected>dy（抖音）</option>
+                  <option value="ks">ks（快手）</option>
+                  <option value="bili">bili（B站）</option>
+                  <option value="wb">wb（微博）</option>
+                  <option value="tieba">tieba（贴吧）</option>
+                  <option value="zhihu">zhihu（知乎）</option>
+                </select>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">爬取类型</label>
+                <select id="CRAWLER_TYPE" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm">
+                  <option value="search" selected>search（关键词搜索）</option>
+                  <option value="detail">detail（指定视频）</option>
+                  <option value="creator">creator（指定创作者）</option>
+                </select>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">登录方式</label>
+                <select id="LOGIN_TYPE" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm">
+                  <option value="qrcode" selected>qrcode（二维码）</option>
+                  <option value="phone">phone（手机号）</option>
+                  <option value="cookie">cookie（Cookie）</option>
+                </select>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">起始页</label>
+                <input id="START_PAGE" type="number" min="1" value="1" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">关键词 <span class="text-gray-400 font-normal">（逗号分隔）</span></label>
+                <div class="flex items-center gap-2">
+                  <textarea id="KEYWORDS" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm">非遗,非物质文化遗产,剪纸,皮影戏</textarea>
+                  <button type="button" onclick="resetKeywords()" class="shrink-0 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300">重置</button>
+                </div>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Cookie <span class="text-gray-400 font-normal">（登录方式为 cookie 时填写）</span></label>
+                <textarea id="COOKIES" rows="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm"></textarea>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">最大爬取数量</label>
+                <input id="CRAWLER_MAX_NOTES_COUNT" type="number" min="1" value="100" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">保存格式</label>
+                <select id="SAVE_DATA_OPTION" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm">
+                  <option value="csv" selected>csv</option>
+                  <option value="json">json</option>
+                  <option value="jsonl">jsonl</option>
+                  <option value="excel">excel</option>
+                  <option value="sqlite">sqlite</option>
+                  <option value="db">db</option>
+                  <option value="postgres">postgres</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">保存路径</label>
+                <input id="SAVE_DATA_PATH" type="text" value="" placeholder="留空默认：项目根目录/data-outputs" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Field Selection -->
+          <div id="tab-fields" class="tab-content hidden p-5 sm:p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+              <span class="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>字段选择
+            </h3>
+            <p class="text-sm text-gray-600 mb-4">以下字段来自抖音接口原始返回，但 MediaCrawler 默认不保存。勾选后会在 <code>data/douyin/extra_fields/</code> 中生成额外 JSONL，通过 <code>aweme_id</code> 与主数据关联。</p>
+            <div class="flex gap-2 mb-5">
+              <button type="button" onclick="selectAllFields()" class="rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500">全选</button>
+              <button type="button" onclick="deselectAllFields()" class="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300">取消全选</button>
+            </div>
+            <div class="space-y-6">
+              <!-- 账号认证 -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 mb-3 pb-1 border-b border-gray-100">账号认证</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex items-start">
+                    <input id="field_is_verified" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="is_verified" />
+                    <div class="ml-2">
+                      <label for="field_is_verified" class="text-sm font-medium text-gray-700">账号是否认证</label>
+                      <p class="text-xs text-gray-500">是否有蓝V/黄V等认证标识</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_verification_type" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="verification_type" />
+                    <div class="ml-2">
+                      <label for="field_verification_type" class="text-sm font-medium text-gray-700">认证类型</label>
+                      <p class="text-xs text-gray-500">抖音内部认证类型代码</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_enterprise_verify_reason" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="enterprise_verify_reason" />
+                    <div class="ml-2">
+                      <label for="field_enterprise_verify_reason" class="text-sm font-medium text-gray-700">企业认证说明</label>
+                      <p class="text-xs text-gray-500">企业号认证时显示的说明文字</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_is_enterprise_vip" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="is_enterprise_vip" />
+                    <div class="ml-2">
+                      <label for="field_is_enterprise_vip" class="text-sm font-medium text-gray-700">是否企业号</label>
+                      <p class="text-xs text-gray-500">是否为企业认证账号</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_is_gov_media_vip" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="is_gov_media_vip" />
+                    <div class="ml-2">
+                      <label for="field_is_gov_media_vip" class="text-sm font-medium text-gray-700">是否政务号</label>
+                      <p class="text-xs text-gray-500">是否为政府或媒体认证账号</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start sm:col-span-2 mt-2 pt-2 border-t border-gray-100">
+                    <input id="USE_WEB_AUTHOR_VERIFICATION" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded mt-1" />
+                    <div class="ml-2">
+                      <label for="USE_WEB_AUTHOR_VERIFICATION" class="text-sm font-medium text-gray-700">从浏览器主页提取认证信息</label>
+                      <p class="text-xs text-gray-500">更准但更慢；每个作者会额外打开一次抖音主页</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 音乐信息 -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 mb-3 pb-1 border-b border-gray-100">音乐信息</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex items-start">
+                    <input id="field_music_id" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="music_id" />
+                    <div class="ml-2">
+                      <label for="field_music_id" class="text-sm font-medium text-gray-700">音乐 ID</label>
+                      <p class="text-xs text-gray-500">视频使用的背景音乐 ID</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_music_title" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="music_title" />
+                    <div class="ml-2">
+                      <label for="field_music_title" class="text-sm font-medium text-gray-700">音乐名称</label>
+                      <p class="text-xs text-gray-500">视频使用的背景音乐名称</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_music_author" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="music_author" />
+                    <div class="ml-2">
+                      <label for="field_music_author" class="text-sm font-medium text-gray-700">音乐作者</label>
+                      <p class="text-xs text-gray-500">视频使用的背景音乐作者</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 内容与互动 -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 mb-3 pb-1 border-b border-gray-100">内容与互动</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex items-start">
+                    <input id="field_play_count" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="play_count" />
+                    <div class="ml-2">
+                      <label for="field_play_count" class="text-sm font-medium text-gray-700">播放量</label>
+                      <p class="text-xs text-gray-500">视频播放次数。抖音网页接口通常返回 0，无法通过详情接口补全。</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_challenge_tags" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="challenge_tags" />
+                    <div class="ml-2">
+                      <label for="field_challenge_tags" class="text-sm font-medium text-gray-700">话题/挑战标签</label>
+                      <p class="text-xs text-gray-500">视频带的话题标签，多个以逗号分隔</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 商业信息 -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 mb-3 pb-1 border-b border-gray-100">商业信息</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex items-start">
+                    <input id="field_is_ads" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="is_ads" />
+                    <div class="ml-2">
+                      <label for="field_is_ads" class="text-sm font-medium text-gray-700">是否广告</label>
+                      <p class="text-xs text-gray-500">视频是否为广告内容</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="field_has_anchor" type="checkbox" checked class="field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-field="has_anchor" />
+                    <div class="ml-2">
+                      <label for="field_has_anchor" class="text-sm font-medium text-gray-700">是否含商业锚点</label>
+                      <p class="text-xs text-gray-500">是否挂了商品、地点、链接等锚点</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 作者统计（后处理） -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 mb-3 pb-1 border-b border-gray-100">作者统计（后处理）</h4>
+                <p class="text-xs text-gray-500 mb-3">以下字段由 <code>enrich_author_stats.py</code> 后处理采集，不影响爬虫主流程；需在爬虫跑完后手动运行：
+                  <code>python3 web-config-tool/tools/enrich_author_stats.py</code>。勾选结果会在启动爬虫时保存到 <code>author_stats_fields.json</code>，脚本运行时自动读取。</p>
+                <div class="flex items-start mb-3">
+                  <input id="AUTO_ENRICH_AUTHOR_STATS" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded mt-1" />
+                  <div class="ml-2">
+                    <label for="AUTO_ENRICH_AUTHOR_STATS" class="text-sm font-medium text-gray-700">爬虫结束后自动运行作者统计后处理</label>
+                    <p class="text-xs text-gray-500">默认关闭；不勾选时可在爬虫结束后手动运行脚本进行断点检查</p>
+                  </div>
+                </div>
+                <div class="flex gap-2 mb-3">
+                  <button type="button" onclick="selectAllAuthorFields()" class="rounded-md bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500">全选</button>
+                  <button type="button" onclick="deselectAllAuthorFields()" class="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300">取消全选</button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="flex items-start">
+                    <input id="afield_uid" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="uid" />
+                    <div class="ml-2">
+                      <label for="afield_uid" class="text-sm font-medium text-gray-700">作者 UID</label>
+                      <p class="text-xs text-gray-500">作者主页对应的抖音用户 ID</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_nickname" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="nickname" />
+                    <div class="ml-2">
+                      <label for="afield_nickname" class="text-sm font-medium text-gray-700">作者昵称</label>
+                      <p class="text-xs text-gray-500">作者主页上的实时昵称（主输出中的昵称为脱敏值）</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_signature" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="signature" />
+                    <div class="ml-2">
+                      <label for="afield_signature" class="text-sm font-medium text-gray-700">作者签名</label>
+                      <p class="text-xs text-gray-500">作者主页的个人简介/签名</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_ip_location" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="ip_location" />
+                    <div class="ml-2">
+                      <label for="afield_ip_location" class="text-sm font-medium text-gray-700">IP 属地</label>
+                      <p class="text-xs text-gray-500">作者主页展示的 IP 归属地</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_follower_count" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="follower_count" />
+                    <div class="ml-2">
+                      <label for="afield_follower_count" class="text-sm font-medium text-gray-700">粉丝数</label>
+                      <p class="text-xs text-gray-500">作者主页粉丝数（自动换算 1.2w/3.4万 等缩写）</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_total_favorited" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="total_favorited" />
+                    <div class="ml-2">
+                      <label for="afield_total_favorited" class="text-sm font-medium text-gray-700">总获赞数</label>
+                      <p class="text-xs text-gray-500">作者主页显示的全部作品获赞总数</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_following_count" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="following_count" />
+                    <div class="ml-2">
+                      <label for="afield_following_count" class="text-sm font-medium text-gray-700">关注数</label>
+                      <p class="text-xs text-gray-500">作者关注的账号数量</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_aweme_count" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="aweme_count" />
+                    <div class="ml-2">
+                      <label for="afield_aweme_count" class="text-sm font-medium text-gray-700">作品数</label>
+                      <p class="text-xs text-gray-500">作者发布的作品总数</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_is_verified" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="is_verified" />
+                    <div class="ml-2">
+                      <label for="afield_is_verified" class="text-sm font-medium text-gray-700">账号是否认证</label>
+                      <p class="text-xs text-gray-500">是否有蓝V/黄V等认证标识</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_verification_type" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="verification_type" />
+                    <div class="ml-2">
+                      <label for="afield_verification_type" class="text-sm font-medium text-gray-700">认证类型</label>
+                      <p class="text-xs text-gray-500">1=个人/黄 V，2=企业/蓝 V</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_custom_verify" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="custom_verify" />
+                    <div class="ml-2">
+                      <label for="afield_custom_verify" class="text-sm font-medium text-gray-700">认证说明（黄 V）</label>
+                      <p class="text-xs text-gray-500">个人认证的说明文字，如「文化自媒体」</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <input id="afield_enterprise_verify_reason" type="checkbox" checked class="author-field-checkbox mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded" data-afield="enterprise_verify_reason" />
+                    <div class="ml-2">
+                      <label for="afield_enterprise_verify_reason" class="text-sm font-medium text-gray-700">企业认证说明（蓝 V）</label>
+                      <p class="text-xs text-gray-500">企业号认证时显示的说明文字</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Douyin-specific -->
+          <div id="tab-douyin" class="tab-content hidden p-5 sm:p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <span class="w-2 h-2 bg-pink-500 rounded-full mr-2"></span>抖音专用配置
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">发布时间筛选</label>
+                <select id="PUBLISH_TIME_TYPE" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm">
+                  <option value="0" selected>0 — 不限</option>
+                  <option value="1">1 — 一天内</option>
+                  <option value="7">7 — 一周内</option>
+                  <option value="180">180 — 半年内</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">指定视频 ID / 链接 <span class="text-gray-400 font-normal">（detail 模式，每行一个）</span></label>
+                <textarea id="DY_SPECIFIED_ID_LIST" rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm"></textarea>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">指定创作者 ID / 主页链接 <span class="text-gray-400 font-normal">（creator 模式，每行一个）</span></label>
+                <textarea id="DY_CREATOR_ID_LIST" rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Anti-detection / Performance -->
+          <div id="tab-antidetect" class="tab-content hidden p-5 sm:p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <span class="w-2 h-2 bg-amber-500 rounded-full mr-2"></span>反检测与性能
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">最大并发数</label>
+                <input id="MAX_CONCURRENCY_NUM" type="number" min="1" value="1" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">请求间隔（秒）</label>
+                <input id="CRAWLER_MAX_SLEEP_SEC" type="number" min="0" step="0.5" value="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="ENABLE_IP_PROXY" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="ENABLE_IP_PROXY" class="ml-2 text-sm text-gray-700">启用 IP 代理</label>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">代理池数量</label>
+                <input id="IP_PROXY_POOL_COUNT" type="number" min="1" value="2" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">代理提供商</label>
+                <select id="IP_PROXY_PROVIDER_NAME" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm">
+                  <option value="kuaidaili" selected>kuaidaili（快代理）</option>
+                  <option value="wandouhttp">wandouhttp（豌豆 HTTP）</option>
+                  <option value="static">static（自建/固定代理）</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500">
+                  kuaidaili / wandouhttp 为第三方付费代理，需自行注册并配置环境变量。static 为固定代理地址。
+                </p>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">静态代理地址</label>
+                <input id="STATIC_PROXY_URL" type="text" placeholder="http://user:pass@host:port" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+                <p class="mt-1 text-xs text-gray-500">仅当「代理提供商」选择 static 时生效。</p>
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="HEADLESS" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="HEADLESS" class="ml-2 text-sm text-gray-700">无头模式（不显示浏览器）</label>
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="SAVE_LOGIN_STATE" type="checkbox" checked class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="SAVE_LOGIN_STATE" class="ml-2 text-sm text-gray-700">保存登录状态</label>
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="ENABLE_CDP_MODE" type="checkbox" checked class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="ENABLE_CDP_MODE" class="ml-2 text-sm text-gray-700">启用 CDP 模式（推荐）</label>
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="CDP_HEADLESS" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="CDP_HEADLESS" class="ml-2 text-sm text-gray-700">CDP 无头模式</label>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">CDP 调试端口</label>
+                <input id="CDP_DEBUG_PORT" type="number" value="9222" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">自定义浏览器路径</label>
+                <input id="CUSTOM_BROWSER_PATH" type="text" placeholder="/Applications/Google Chrome.app/..." class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="CDP_CONNECT_EXISTING" type="checkbox" checked class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="CDP_CONNECT_EXISTING" class="ml-2 text-sm text-gray-700">连接已打开的浏览器</label>
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="AUTO_CLOSE_BROWSER" type="checkbox" checked class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="AUTO_CLOSE_BROWSER" class="ml-2 text-sm text-gray-700">结束后关闭浏览器</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Output / Comments -->
+          <div id="tab-output" class="tab-content hidden p-5 sm:p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>输出与评论
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="ENABLE_GET_COMMENTS" type="checkbox" checked class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="ENABLE_GET_COMMENTS" class="ml-2 text-sm text-gray-700">抓取评论</label>
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="ENABLE_GET_SUB_COMMENTS" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="ENABLE_GET_SUB_COMMENTS" class="ml-2 text-sm text-gray-700">抓取子评论</label>
+              </div>
+              <div class="sm:col-span-1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">单视频最大评论数 <span class="text-gray-400 font-normal">（填 999999 近似不限制）</span></label>
+                <input id="CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES" type="number" min="0" value="10" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm" />
+              </div>
+              <div class="sm:col-span-1 flex items-center h-10">
+                <input id="ENABLE_GET_MEIDAS" type="checkbox" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+                <label for="ENABLE_GET_MEIDAS" class="ml-2 text-sm text-gray-700">下载媒体文件</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Preview + Actions -->
+      <aside class="lg:col-span-5 space-y-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 sm:p-6 sticky top-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">实时预览</h3>
+            <div class="flex space-x-2">
+              <button id="downloadBase" type="button" class="text-sm text-blue-600 hover:text-blue-800 font-medium">下载 base_config.py</button>
+              <button id="downloadDy" type="button" class="text-sm text-blue-600 hover:text-blue-800 font-medium">下载 dy_config.py</button>
+            </div>
+          </div>
+
+          <!-- Run command -->
+          <div class="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">运行命令</span>
+              <button id="copyRunCommand" type="button" class="text-xs text-blue-600 hover:text-blue-800 font-medium">复制</button>
+            </div>
+            <code id="runCommand" class="code-block block text-xs text-gray-800 break-all"></code>
+          </div>
+
+          <!-- base_config.py -->
+          <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-gray-900">base_config.py</h4>
+            </div>
+            <pre id="baseConfigPreview" class="code-block bg-gray-900 text-gray-100 text-xs rounded-md p-4 overflow-x-auto max-h-64"></pre>
+          </div>
+
+          <!-- dy_config.py -->
+          <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-sm font-semibold text-gray-900">dy_config.py</h4>
+            </div>
+            <pre id="dyConfigPreview" class="code-block bg-gray-900 text-gray-100 text-xs rounded-md p-4 overflow-x-auto max-h-64"></pre>
+          </div>
+
+          <!-- Actions -->
+          <div class="space-y-3">
+            <button id="runBtn" type="button" class="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+              启动爬虫
+            </button>
+            <button id="stopBtn" type="button" disabled class="w-full rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500 disabled:bg-gray-300 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+              停止爬虫
+            </button>
+            <div id="statusBadge" class="text-center text-xs text-gray-500">状态：就绪</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Log terminal -->
+    <section class="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 p-5 sm:p-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+          <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>运行日志
+        </h3>
+        <button id="clearLogs" type="button" class="text-xs text-gray-500 hover:text-gray-700">清空日志</button>
+      </div>
+      <div id="logContainer" class="code-block bg-gray-900 text-gray-100 text-xs rounded-md p-4 h-80 overflow-y-auto font-mono leading-relaxed">
+        <div class="text-gray-500">等待启动...</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-7xl mx-auto px-4 sm:px-6 pb-8 text-center text-xs text-gray-500">
+    仅用于学术研究。请遵守平台规则与相关法律法规。
+  </footer>
+
+  <script>
+    const API_BASE = ''; // use same host:port as the page
+    const ids = [
+      'PLATFORM', 'CRAWLER_TYPE', 'LOGIN_TYPE', 'KEYWORDS', 'COOKIES', 'START_PAGE',
+      'CRAWLER_MAX_NOTES_COUNT', 'SAVE_DATA_OPTION', 'SAVE_DATA_PATH', 'PUBLISH_TIME_TYPE',
+      'DY_SPECIFIED_ID_LIST', 'DY_CREATOR_ID_LIST', 'HEADLESS', 'SAVE_LOGIN_STATE',
+      'ENABLE_CDP_MODE', 'CDP_HEADLESS', 'CDP_DEBUG_PORT', 'CUSTOM_BROWSER_PATH',
+      'CDP_CONNECT_EXISTING', 'AUTO_CLOSE_BROWSER', 'MAX_CONCURRENCY_NUM', 'CRAWLER_MAX_SLEEP_SEC',
+      'ENABLE_IP_PROXY', 'IP_PROXY_POOL_COUNT', 'IP_PROXY_PROVIDER_NAME', 'STATIC_PROXY_URL',
+      'ENABLE_GET_COMMENTS', 'ENABLE_GET_SUB_COMMENTS', 'CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES',
+      'ENABLE_GET_MEIDAS', 'USE_WEB_AUTHOR_VERIFICATION'
+    ];
+
+    const inputs = {};
+    ids.forEach(id => {
+      inputs[id] = document.getElementById(id);
+    });
+
+    const webVerifyCheckbox = inputs['USE_WEB_AUTHOR_VERIFICATION'];
+    if (webVerifyCheckbox) {
+      webVerifyCheckbox.addEventListener('change', function() {
+        if (this.checked) {
+          const authorFields = ['is_verified', 'verification_type', 'enterprise_verify_reason', 'is_enterprise_vip', 'is_gov_media_vip'];
+          authorFields.forEach(field => {
+            const cb = document.querySelector(`[data-field="${field}"]`);
+            if (cb) cb.checked = true;
+          });
+          updatePreview();
+        }
+      });
+    }
+
+    let currentJobId = null;
+    let eventSource = null;
+
+    function pyBool(value) {
+      return value ? 'True' : 'False';
+    }
+
+    function pyStr(value) {
+      if (!value) return "''";
+      const escaped = String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `'${escaped}'`;
+    }
+
+    function pyListFromLines(text) {
+      const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+      if (lines.length === 0) return '[]';
+      return '[' + lines.map(line => pyStr(line)).join(', ') + ']';
+    }
+
+    function pyListFromArray(arr) {
+      if (!arr || arr.length === 0) return '[]';
+      return '[' + arr.map(item => pyStr(item)).join(', ') + ']';
+    }
+
+    function resetKeywords() {
+      document.getElementById('KEYWORDS').value = '非遗,非物质文化遗产,剪纸,皮影戏';
+    }
+
+    function getSelectedFields() {
+      return Array.from(document.querySelectorAll('.field-checkbox:checked')).map(cb => cb.dataset.field);
+    }
+
+    function selectAllFields() {
+      document.querySelectorAll('.field-checkbox').forEach(cb => cb.checked = true);
+      updatePreview();
+    }
+
+    function deselectAllFields() {
+      document.querySelectorAll('.field-checkbox').forEach(cb => cb.checked = false);
+      updatePreview();
+    }
+
+    function getSelectedAuthorFields() {
+      return Array.from(document.querySelectorAll('.author-field-checkbox:checked')).map(cb => cb.dataset.afield);
+    }
+
+    function selectAllAuthorFields() {
+      document.querySelectorAll('.author-field-checkbox').forEach(cb => cb.checked = true);
+    }
+
+    function deselectAllAuthorFields() {
+      document.querySelectorAll('.author-field-checkbox').forEach(cb => cb.checked = false);
+    }
+
+    function collectValues() {
+      const v = {};
+      ids.forEach(id => {
+        const el = inputs[id];
+        if (el.type === 'checkbox') {
+          v[id] = el.checked;
+        } else if (el.type === 'number') {
+          const num = Number(el.value);
+          v[id] = isNaN(num) ? el.value : num;
+        } else {
+          v[id] = el.value;
+        }
+      });
+      v.SELECTED_EXTRA_FIELDS = getSelectedFields();
+      v.SELECTED_AUTHOR_STAT_FIELDS = getSelectedAuthorFields();
+      v.AUTO_ENRICH_AUTHOR_STATS = document.getElementById('AUTO_ENRICH_AUTHOR_STATS').checked;
+      return v;
+    }
+
+    function generateConfigs() {
+      const v = collectValues();
+
+      const base = `# MediaCrawler base configuration\n# 由 MediaCrawler 配置工具生成\n\n# 平台选择\nPLATFORM = ${pyStr(v.PLATFORM)}\nCRAWLER_TYPE = ${pyStr(v.CRAWLER_TYPE)}\nLOGIN_TYPE = ${pyStr(v.LOGIN_TYPE)}\n\n# 搜索关键词（逗号分隔）\nKEYWORDS = ${pyStr(v.KEYWORDS)}\n\n# Cookie 登录配置\nCOOKIES = ${pyStr(v.COOKIES)}\n\n# 分页与限制\nSTART_PAGE = ${v.START_PAGE}\nCRAWLER_MAX_NOTES_COUNT = ${v.CRAWLER_MAX_NOTES_COUNT}\nMAX_CONCURRENCY_NUM = ${v.MAX_CONCURRENCY_NUM}\nCRAWLER_MAX_SLEEP_SEC = ${v.CRAWLER_MAX_SLEEP_SEC}\n\n# 输出设置\nSAVE_DATA_OPTION = ${pyStr(v.SAVE_DATA_OPTION)}\nSAVE_DATA_PATH = ${pyStr(v.SAVE_DATA_PATH)}\n\n# 评论\nENABLE_GET_COMMENTS = ${pyBool(v.ENABLE_GET_COMMENTS)}\nENABLE_GET_SUB_COMMENTS = ${pyBool(v.ENABLE_GET_SUB_COMMENTS)}\nCRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = ${v.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES}\n\n# 媒体下载\nENABLE_GET_MEIDAS = ${pyBool(v.ENABLE_GET_MEIDAS)}\n\n# 扩展字段选择（为空列表则不启用，字段含义见字段选择 Tab）\nSELECTED_EXTRA_FIELDS = ${pyListFromArray(v.SELECTED_EXTRA_FIELDS)}\n\nUSE_WEB_AUTHOR_VERIFICATION = ${pyBool(v.USE_WEB_AUTHOR_VERIFICATION)}
+
+# IP 代理与反检测\nENABLE_IP_PROXY = ${pyBool(v.ENABLE_IP_PROXY)}\nIP_PROXY_POOL_COUNT = ${v.IP_PROXY_POOL_COUNT}\nIP_PROXY_PROVIDER_NAME = ${pyStr(v.IP_PROXY_PROVIDER_NAME)}\nSTATIC_PROXY_URL = ${pyStr(v.STATIC_PROXY_URL)}\n\n# 浏览器行为\nHEADLESS = ${pyBool(v.HEADLESS)}\nSAVE_LOGIN_STATE = ${pyBool(v.SAVE_LOGIN_STATE)}\nENABLE_CDP_MODE = ${pyBool(v.ENABLE_CDP_MODE)}\nCDP_HEADLESS = ${pyBool(v.CDP_HEADLESS)}\nCDP_DEBUG_PORT = ${v.CDP_DEBUG_PORT}\nCUSTOM_BROWSER_PATH = ${pyStr(v.CUSTOM_BROWSER_PATH)}\nCDP_CONNECT_EXISTING = ${pyBool(v.CDP_CONNECT_EXISTING)}\nAUTO_CLOSE_BROWSER = ${pyBool(v.AUTO_CLOSE_BROWSER)}\n\nUSER_DATA_DIR = "%s_user_data_dir"\nDISABLE_SSL_VERIFY = False\n`;
+
+      const dy = `# MediaCrawler 抖音专用配置\n# 由 MediaCrawler 配置工具生成\n\n# 发布时间筛选\nPUBLISH_TIME_TYPE = ${v.PUBLISH_TIME_TYPE}\n\n# detail 模式：指定视频 ID 或链接列表\nDY_SPECIFIED_ID_LIST = ${pyListFromLines(v.DY_SPECIFIED_ID_LIST)}\n\n# creator 模式：指定创作者 ID 或主页链接列表\nDY_CREATOR_ID_LIST = ${pyListFromLines(v.DY_CREATOR_ID_LIST)}\n`;
+
+      return { base, dy };
+    }
+
+    function updatePreview() {
+      const { base, dy } = generateConfigs();
+      document.getElementById('baseConfigPreview').textContent = base;
+      document.getElementById('dyConfigPreview').textContent = dy;
+
+      const v = collectValues();
+      const runCmd = v.SELECTED_EXTRA_FIELDS.length > 0
+        ? `uv run web-config-tool/extensions/run_crawler_enriched.py`
+        : `uv run main.py --platform ${v.PLATFORM} --lt ${v.LOGIN_TYPE} --type ${v.CRAWLER_TYPE}`;
+      document.getElementById('runCommand').textContent = runCmd;
+    }
+
+    function appendLog(text, isError = false) {
+      const container = document.getElementById('logContainer');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.textContent = text;
+      if (isError) line.classList.add('text-red-400');
+      container.appendChild(line);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function setRunning(running) {
+      const runBtn = document.getElementById('runBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const statusBadge = document.getElementById('statusBadge');
+      if (running) {
+        runBtn.disabled = true;
+        runBtn.textContent = '爬虫运行中...';
+        stopBtn.disabled = false;
+        statusBadge.textContent = '状态：运行中';
+        statusBadge.className = 'text-center text-xs text-blue-600 font-medium';
+      } else {
+        runBtn.disabled = false;
+        runBtn.textContent = '启动爬虫';
+        stopBtn.disabled = true;
+        statusBadge.textContent = '状态：就绪';
+        statusBadge.className = 'text-center text-xs text-gray-500';
+      }
+    }
+
+    function downloadFile(content, filename, mimeType = 'text/plain') {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    async function startCrawler() {
+      if (currentJobId) {
+        appendLog('[WARN] 已有任务在运行，请先停止。', true);
+        return;
+      }
+
+      const container = document.getElementById('logContainer');
+      container.innerHTML = '';
+      appendLog('[INFO] 正在发送启动请求...');
+
+      try {
+        const response = await fetch(`${API_BASE}/api/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(collectValues())
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          appendLog(`[ERROR] 启动失败: ${err.error || response.statusText}`, true);
+          return;
+        }
+
+        const data = await response.json();
+        currentJobId = data.job_id;
+        appendLog(`[INFO] 任务已创建: ${currentJobId}`);
+        appendLog(`[INFO] 临时配置目录: ${data.temp_config_dir}`);
+        setRunning(true);
+
+        connectLogStream(currentJobId);
+      } catch (e) {
+        appendLog(`[ERROR] 网络请求失败: ${e.message}`, true);
+        appendLog('[HINT] 请确认后端服务已启动: python server.py', true);
+      }
+    }
+
+    function connectLogStream(jobId) {
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource(`${API_BASE}/api/logs/${jobId}`);
+      eventSource.onmessage = (event) => {
+        if (event.data) {
+          appendLog(event.data);
+        }
+      };
+
+      eventSource.addEventListener('close', () => {
+        appendLog('[INFO] 日志流已关闭');
+        setRunning(false);
+        currentJobId = null;
+        eventSource.close();
+        eventSource = null;
+      });
+
+      eventSource.onerror = () => {
+        appendLog('[ERROR] 日志流连接异常', true);
+        setRunning(false);
+        currentJobId = null;
+        eventSource.close();
+        eventSource = null;
+      };
+    }
+
+    async function stopCrawler() {
+      if (!currentJobId) return;
+      try {
+        const response = await fetch(`${API_BASE}/api/stop/${currentJobId}`, { method: 'POST' });
+        if (response.ok) {
+          appendLog('[INFO] 已发送停止指令');
+        } else {
+          appendLog('[ERROR] 停止失败', true);
+        }
+      } catch (e) {
+        appendLog(`[ERROR] 停止请求失败: ${e.message}`, true);
+      }
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+        btn.classList.add('active');
+        document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      });
+    });
+
+    // Bind downloads
+    document.getElementById('downloadBase').addEventListener('click', () => {
+      const { base } = generateConfigs();
+      downloadFile(base, 'base_config.py');
+    });
+
+    document.getElementById('downloadDy').addEventListener('click', () => {
+      const { dy } = generateConfigs();
+      downloadFile(dy, 'dy_config.py');
+    });
+
+    document.getElementById('copyRunCommand').addEventListener('click', async () => {
+      const text = document.getElementById('runCommand').textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('copyRunCommand');
+        btn.textContent = '已复制';
+        setTimeout(() => btn.textContent = '复制', 1500);
+      } catch (err) {
+        window.prompt('复制命令:', text);
+      }
+    });
+
+    document.getElementById('runBtn').addEventListener('click', startCrawler);
+    document.getElementById('stopBtn').addEventListener('click', stopCrawler);
+    document.getElementById('clearLogs').addEventListener('click', () => {
+      document.getElementById('logContainer').innerHTML = '<div class="text-gray-500">等待启动...</div>';
+    });
+
+    // Bind all inputs
+    ids.forEach(id => {
+      if (inputs[id]) {
+        inputs[id].addEventListener('input', updatePreview);
+        inputs[id].addEventListener('change', updatePreview);
+      }
+    });
+
+    // Bind field checkboxes
+    document.querySelectorAll('.field-checkbox').forEach(cb => {
+      cb.addEventListener('change', updatePreview);
+    });
+
+    // Initial render
+    updatePreview();
+  </script>
+</body>
+</html>

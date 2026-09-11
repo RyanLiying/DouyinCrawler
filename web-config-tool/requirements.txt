@@ -1,0 +1,5 @@
+flask>=3.0.0
+flask-cors>=4.0.0
+# 作者统计后处理（enrich_author_stats.py）的浏览器自动化依赖；
+# 仅在勾选「爬虫结束后自动运行作者统计后处理」时需要，安装后还需执行 playwright install chromium
+playwright>=1.40.0
