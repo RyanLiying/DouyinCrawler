@@ -20,14 +20,16 @@ crawler/
     ├── server.py              # Flask 后端服务
     ├── requirements.txt       # Python 依赖
     ├── tools/
-    │   ├── enrich_author_stats.py   # 作者统计后处理
-    │   └── merge_douyin_outputs.py  # 合并最终统计表
+    │   ├── enrich_author_stats.py    # 作者统计后处理
+    │   ├── merge_douyin_outputs.py   # 合并导出 3 个 CSV（主表/评论表/作者表）
+    │   └── build_douyin_workbook.py  # 生成 3-Sheet Excel（主表/评论表/作者表）
     └── README.md              # 本文件
 ```
 
 ## 环境准备
 
 1. 确保已安装 Python 3.10+ 和 uv。
+2. 确保已安装 Node.js ≥ 16（抖音签名用 `execjs`，必须）。
 3. 创建并激活虚拟环境，安装后端依赖：
 
 ```bash
@@ -38,6 +40,8 @@ pip install -r requirements.txt
 ```
 
 ## 启动方式
+
+> WSL2/Linux 用户可直接在项目根目录运行 `./start-web.sh`：它会自动准备好 `uv`、Chromium 依赖等环境变量，默认端口 `8082`；CDP 浏览器用 `./start-chrome-cdp.sh` 启动。
 
 ### 1. 启动后端服务
 
@@ -117,11 +121,32 @@ python3 web-config-tool/tools/enrich_author_stats.py
 - `author_stats_YYYY-MM-DD_HHMMSS.{csv|jsonl}`：作者级数据。
 - `author_map_YYYY-MM-DD_HHMMSS.{csv|jsonl}`：`aweme_id -> sec_uid` 映射，供合并脚本连接。
 
-最后运行合并脚本把作者字段左连接进最终统计表（新增列带 `author_` 前缀）：
+最后运行合并脚本：把作者字段（带 `author_` 前缀）与评论聚合左连接进主表，并导出 3 个 CSV。CSV 一个文件只能装一张表，故 3 张表 = 3 个文件（同一次运行使用同一时间戳）：
 
 ```bash
+# 在项目根目录运行
 python3 web-config-tool/tools/merge_douyin_outputs.py
 ```
+
+输出到 `data-outputs/douyin/merged/`：
+
+| 文件 | 表 | 主键 |
+| --- | --- | --- |
+| `merged_YYYY-MM-DD_HHMMSS.csv` | 主表 | `aweme_id` |
+| `comments_YYYY-MM-DD_HHMMSS.csv` | 评论表 | `comment_id` |
+| `authors_YYYY-MM-DD_HHMMSS.csv` | 作者表 | `sec_uid` |
+
+主表追加的评论聚合列：`collected_comment_n`（实采评论数）、`comment_like_sum`（评论总赞）、`comment_like_avg`（平均赞）、`top_comment_like`（热评赞数）、`top_comment`（热评内容）、`top_comment_author`（热评作者）。`--no-comments` 可跳过评论聚合，`--main-only` 只输出主表。
+
+### 生成 3-Sheet Excel（可选）
+
+如需把 3 张表放进单个 Excel 文件（便于阅读），在项目根目录运行（依赖 openpyxl，MediaCrawler 虚拟环境已自带）：
+
+```bash
+MediaCrawler/.venv/bin/python web-config-tool/tools/build_douyin_workbook.py
+```
+
+输出 `data-outputs/douyin/merged/douyin_data_YYYY-MM-DD_HHMMSS.xlsx`，Sheet 与上表三张表一一对应。
 
 ### 登录墙检测与熔断
 

@@ -153,23 +153,40 @@ publish_date = df["publish_dt"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
 ---
 
-## 五、合并两份文件
+## 五、合并与导出
 
-标准字段与扩展字段是分开存储的，需要通过 `aweme_id` 合并。可使用已提供的脚本：
+标准字段、扩展字段、作者统计、评论是分开存储的，需要按 `aweme_id` / `sec_uid` 合并。可使用已提供的脚本（在项目根目录运行）：
 
 ```bash
-cd DouyinCrawler
 python3 web-config-tool/tools/merge_douyin_outputs.py
 ```
+
+默认在 `data-outputs/douyin/merged/` 输出 3 个 CSV（CSV 一个文件只能装一张表）：
+
+| 文件 | 表 | 主键 |
+| --- | --- | --- |
+| `merged_YYYY-MM-DD_HHMMSS.csv` | 主表 | `aweme_id` |
+| `comments_YYYY-MM-DD_HHMMSS.csv` | 评论表 | `comment_id` |
+| `authors_YYYY-MM-DD_HHMMSS.csv` | 作者表 | `sec_uid` |
+
+主表列 = 标准字段（18）+ 扩展字段（12，以实际勾选为准）+ 作者字段（`author_` 前缀）+ 评论聚合列，另含时间戳转换出的可读日期列。评论聚合列：`collected_comment_n`、`comment_like_sum`、`comment_like_avg`、`top_comment_like`、`top_comment`、`top_comment_author`。
 
 输出示例：
 
 ```text
-合并完成：data-outputs/douyin/merged/merged_2026-07-18.csv
-总记录数：14，成功匹配扩展字段：14，未匹配：0
+合并完成：data-outputs/douyin/merged/merged_2026-09-14_133513.csv
+总记录数：231，成功匹配扩展字段：231，未匹配：0
+成功匹配作者统计：227，未匹配：4
+成功匹配评论聚合：231，未匹配：0
+评论表：data-outputs/douyin/merged/comments_2026-09-14_133513.csv
+作者表：data-outputs/douyin/merged/authors_2026-09-14_133513.csv
 ```
 
-合并后的文件包含 30 列：18 个标准字段 + 12 个扩展字段（以实际勾选为准）。
+如需把 3 张表放进单个 Excel 文件（3 个 Sheet），可选运行：
+
+```bash
+MediaCrawler/.venv/bin/python web-config-tool/tools/build_douyin_workbook.py
+```
 
 ---
 

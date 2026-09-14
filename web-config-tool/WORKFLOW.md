@@ -4,6 +4,8 @@
 
 ## 1. 环境准备（只需一次）
 
+> 依赖：Python 3.10+、uv、**Node.js ≥ 16**（抖音签名用 `execjs`，必须）、Chrome/Chromium。
+
 1. 确认 `MediaCrawler` 已克隆到 `crawler/MediaCrawler/`。
 2. 在 `MediaCrawler` 目录安装依赖：
 
@@ -35,6 +37,8 @@ python server.py
 ```
 
 浏览器打开 `http://127.0.0.1:8080/`。
+
+> **WSL2/Linux**：可直接在项目根目录运行 `./start-web.sh`（自动设置环境、默认端口 `8082`）；CDP 浏览器用 `./start-chrome-cdp.sh` 启动（首次需在弹出的窗口登录抖音）。
 
 ## 3. 网页端配置（每次跑数据）
 
@@ -101,16 +105,31 @@ python server.py
 
 **命名规则**：所有输出文件名带**运行级时间戳**（`YYYY-MM-DD_HHMMSS`，精确到秒）。每次运行生成独立文件，同一天运行多次互不影响——既不覆盖也不混入。合并脚本、作者统计后处理都按文件修改时间自动取最新一轮。
 
-注意：合并脚本默认只合并**最新一轮**的数据（以前按天命名的文件会累积全天）。如需合并历史某一轮，用 `--search` / `--extra` / `--author-stats` 手动指定对应文件。
+注意：合并脚本默认只合并**最新一轮**的数据（以前按天命名的文件会累积全天）。如需合并历史某一轮，用 `--search` / `--extra` / `--author-stats` / `--comments` 手动指定对应文件。
 
-两个文件通过 `aweme_id` 关联。已提供自动合并脚本：
+各文件通过 `aweme_id` / `sec_uid` 关联。已提供自动合并脚本（**默认输出 CSV**）：
 
 ```bash
 cd DouyinCrawler
 python3 web-config-tool/tools/merge_douyin_outputs.py
 ```
 
-默认会自动查找 `data-outputs/douyin/csv/` 和 `data-outputs/douyin/extra_fields/` 下最新的 CSV 文件，合并后写入 `data-outputs/douyin/merged/merged_YYYY-MM-DD_HHMMSS.csv`。
+默认会自动查找 `csv/`、`extra_fields/`、`author_stats/` 与 `csv/search_comments_*` 下最新的文件，并在 `data-outputs/douyin/merged/` 下输出 **3 个 CSV**（CSV 一个文件只能装一张表）：
+
+| 文件 | 表 | 主键 |
+| --- | --- | --- |
+| `merged_YYYY-MM-DD_HHMMSS.csv` | 主表 | `aweme_id` |
+| `comments_YYYY-MM-DD_HHMMSS.csv` | 评论表 | `comment_id` |
+| `authors_YYYY-MM-DD_HHMMSS.csv` | 作者表 | `sec_uid` |
+
+主表合并内容：
+
+- 按 `aweme_id` 左连接扩展字段；
+- 按 `sec_uid`（经 `author_map`）左连接作者统计，列名带 `author_` 前缀；
+- 按 `aweme_id` 聚合评论，追加评论聚合列；
+- 时间戳列自动转成可读日期。
+
+评论聚合列：`collected_comment_n`（实采评论数）、`comment_like_sum`（评论总赞）、`comment_like_avg`（平均赞）、`top_comment_like`（热评赞数）、`top_comment`（热评内容）、`top_comment_author`（热评作者）。不需要评论聚合时加 `--no-comments`；只输出主表加 `--main-only`。
 
 也可以手动指定文件：
 
@@ -195,6 +214,24 @@ python3 web-config-tool/tools/merge_douyin_outputs.py
 ```
 
 合并脚本会自动查找 `author_stats/` 下最新的 `author_stats_*` 与 `author_map_*` 文件；也可用 `--author-stats` / `--author-map` 手动指定。没有 `author_stats` 文件时行为与旧版完全一致，仅打印一行提示；`--no-author` 可强制跳过。
+
+### 导出为 Excel（可选）
+
+默认产物是 3 个 CSV（主表 / 评论表 / 作者表）。如需把 3 张表放进单个 Excel 文件（便于阅读），在项目根目录运行：
+
+```bash
+MediaCrawler/.venv/bin/python web-config-tool/tools/build_douyin_workbook.py
+```
+
+输出 `data-outputs/douyin/merged/douyin_data_YYYY-MM-DD_HHMMSS.xlsx`：
+
+| Sheet | 主键 | 说明 |
+| --- | --- | --- |
+| 主表 | `aweme_id` | 视频信息 + 扩展字段 + 作者信息 + 评论聚合 |
+| 评论表 | `comment_id` | 评论明细 |
+| 作者表 | `sec_uid` | 作者级统计 |
+
+该脚本复用合并逻辑、自动取最新一轮文件，不会重复产生评论聚合列。
 
 ## 7. 验证认证字段
 
