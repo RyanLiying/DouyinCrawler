@@ -17,6 +17,8 @@ logs/
 
 # 本地工具状态
 .omo/
+.codegraph
+.memory-recall-docs.json
 
 # 密钥与环境变量
 .env

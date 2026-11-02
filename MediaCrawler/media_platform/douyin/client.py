@@ -56,6 +56,14 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         self.proxy = proxy
         self.timeout = timeout
         self.headers = headers
+        # 抖音边缘网关 ArgusSecurityPlugin 的前置校验：缺少 x-tt-argus 头直接 403，
+        # 响应体为 "Blocked by ArgusSecurityPlugin Uifid Not Found"。当前网关未校验
+        # 该头的取值，传固定字符串即可（跟随上游 NanmiCoder/MediaCrawler 修复）。
+        self.headers.setdefault("x-tt-argus", "1")
+        # uifid 取 UIFID cookie，没有时退到 UIFID_TEMP
+        uifid = cookie_dict.get("UIFID") or cookie_dict.get("UIFID_TEMP", "")
+        if uifid:
+            self.headers.setdefault("uifid", uifid)
         self._host = "https://www.douyin.com"
         self.cookie_urls = [
             "https://douyin.com",
@@ -215,7 +223,15 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         :param aweme_id:
         :return:
         """
-        params = {"aweme_id": aweme_id}
+        # detail 接口的 Argus 风控要求 uifid + verifyFp/fp 成套出现：uifid = UIFID cookie，
+        # verifyFp/fp 必须取 cookie 里的 s_v_web_id（自生成的 verifyFp 会被判 Signature Not Found）。
+        s_v_web_id = self.cookie_dict.get("s_v_web_id", "")
+        params = {
+            "aweme_id": aweme_id,
+            "uifid": self.cookie_dict.get("UIFID") or self.cookie_dict.get("UIFID_TEMP", ""),
+            "verifyFp": s_v_web_id,
+            "fp": s_v_web_id,
+        }
         headers = copy.copy(self.headers)
         del headers["Origin"]
         res = await self.get("/aweme/v1/web/aweme/detail/", params, headers)
