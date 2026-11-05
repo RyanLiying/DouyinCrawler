@@ -12,6 +12,7 @@ node_modules/
 data-outputs/
 MediaCrawler/data/
 MediaCrawler/browser_data/
+MediaCrawler/config/.web_config_backup/
 web-config-tool/author_stats_fields.json
 logs/
 

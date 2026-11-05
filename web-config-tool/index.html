@@ -394,11 +394,11 @@
                 </select>
               </div>
               <div class="sm:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">指定视频 ID / 链接 <span class="text-gray-400 font-normal">（detail 模式，每行一个）</span></label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">指定视频/笔记 ID 或链接 <span class="text-gray-400 font-normal">（detail 模式，每行一个；抖音填视频 ID 或链接，小红书必须填带 xsec_token 的完整笔记链接）</span></label>
                 <textarea id="DY_SPECIFIED_ID_LIST" rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm"></textarea>
               </div>
               <div class="sm:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">指定创作者 ID / 主页链接 <span class="text-gray-400 font-normal">（creator 模式，每行一个）</span></label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">指定创作者 ID / 主页链接 <span class="text-gray-400 font-normal">（creator 模式，每行一个；小红书必须填带 xsec_token 和 xsec_source 的完整主页链接）</span></label>
                 <textarea id="DY_CREATOR_ID_LIST" rows="3" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 text-sm"></textarea>
               </div>
             </div>
@@ -532,10 +532,10 @@
             <pre id="baseConfigPreview" class="code-block bg-gray-900 text-gray-100 text-xs rounded-md p-4 overflow-x-auto max-h-64"></pre>
           </div>
 
-          <!-- dy_config.py -->
+          <!-- 平台专属配置（dy_config.py / xhs_config.py，随平台切换） -->
           <div class="mb-5">
             <div class="flex items-center justify-between mb-2">
-              <h4 class="text-sm font-semibold text-gray-900">dy_config.py</h4>
+              <h4 id="platformConfigTitle" class="text-sm font-semibold text-gray-900">dy_config.py</h4>
             </div>
             <pre id="dyConfigPreview" class="code-block bg-gray-900 text-gray-100 text-xs rounded-md p-4 overflow-x-auto max-h-64"></pre>
           </div>
@@ -686,13 +686,19 @@
 
       const dy = `# MediaCrawler 抖音专用配置\n# 由 MediaCrawler 配置工具生成\n\n# 发布时间筛选\nPUBLISH_TIME_TYPE = ${v.PUBLISH_TIME_TYPE}\n\n# detail 模式：指定视频 ID 或链接列表\nDY_SPECIFIED_ID_LIST = ${pyListFromLines(v.DY_SPECIFIED_ID_LIST)}\n\n# creator 模式：指定创作者 ID 或主页链接列表\nDY_CREATOR_ID_LIST = ${pyListFromLines(v.DY_CREATOR_ID_LIST)}\n`;
 
-      return { base, dy };
+      const xhs = `# MediaCrawler 小红书专用配置\n# 由 MediaCrawler 配置工具生成\n\n# 搜索排序方式：popularity_descending / latest / most_liked\nSORT_TYPE = "popularity_descending"\n\n# detail 模式：指定笔记链接列表（必须带 xsec_token 参数）\nXHS_SPECIFIED_NOTE_URL_LIST = ${pyListFromLines(v.DY_SPECIFIED_ID_LIST)}\n\n# creator 模式：指定创作者主页链接列表（必须带 xsec_token 和 xsec_source 参数）\nXHS_CREATOR_ID_LIST = ${pyListFromLines(v.DY_CREATOR_ID_LIST)}\n`;
+
+      const platFile = v.PLATFORM === 'xhs' ? 'xhs_config.py' : 'dy_config.py';
+      const platContent = v.PLATFORM === 'xhs' ? xhs : dy;
+      return { base, platFile, platContent };
     }
 
     function updatePreview() {
-      const { base, dy } = generateConfigs();
+      const { base, platFile, platContent } = generateConfigs();
       document.getElementById('baseConfigPreview').textContent = base;
-      document.getElementById('dyConfigPreview').textContent = dy;
+      document.getElementById('dyConfigPreview').textContent = platContent;
+      document.getElementById('platformConfigTitle').textContent = platFile;
+      document.getElementById('downloadDy').textContent = `下载 ${platFile}`;
 
       const v = collectValues();
       const runCmd = v.SELECTED_EXTRA_FIELDS.length > 0
@@ -839,8 +845,8 @@
     });
 
     document.getElementById('downloadDy').addEventListener('click', () => {
-      const { dy } = generateConfigs();
-      downloadFile(dy, 'dy_config.py');
+      const { platFile, platContent } = generateConfigs();
+      downloadFile(platContent, platFile);
     });
 
     document.getElementById('copyRunCommand').addEventListener('click', async () => {

@@ -64,24 +64,25 @@ def get_video_url_arr(note_item: Dict) -> List:
         return []
 
     video_dict = note_item.get('video')
-    if not video_dict:
+    if not isinstance(video_dict, dict):
         return []
 
-    videoArr = []
-    consumer = video_dict.get('consumer', {})
-    originVideoKey = consumer.get('origin_video_key', '')
-    if originVideoKey == '':
-        originVideoKey = consumer.get('originVideoKey', '')
-    # Fallback with watermark
-    if originVideoKey == '':
-        media = video_dict.get('media', {})
-        stream = media.get('stream', {})
-        videos = stream.get('h264')
-        if type(videos).__name__ == 'list':
-            videoArr = [v.get('master_url') for v in videos]
-    else:
-        videoArr = [f"http://sns-video-bd.xhscdn.com/{originVideoKey}"]
+    consumer = video_dict.get('consumer') or {}
+    originVideoKey = consumer.get('origin_video_key', '') or consumer.get('originVideoKey', '')
+    if originVideoKey:
+        return [f"https://sns-video-bd.xhscdn.com/{originVideoKey}"]
 
+    # stream 分档名小红书换过多代（早期 h264/h265/av1，现为 EF4/EF5/EF6/EF7），
+    # 不写死分档名、凡是 list 都当候选，避免上游改名后静默取空（跟随上游修复）
+    media = video_dict.get('media') or {}
+    stream = media.get('stream') or {}
+    videoArr = []
+    for bucket in stream.values():
+        if isinstance(bucket, list):
+            videoArr.extend(
+                v.get('master_url') for v in bucket
+                if isinstance(v, dict) and v.get('master_url')
+            )
     return videoArr
 
 
