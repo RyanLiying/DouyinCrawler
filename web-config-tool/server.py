@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.request
 import uuid
 import importlib.util
 from queue import Queue, Empty
@@ -70,6 +71,44 @@ def count_search_rows(path: str) -> int:
 
 # In-memory job registry
 jobs = {}
+
+
+def resolve_xhs_shortlinks(text: str) -> str:
+    """逐行处理输入文本，把 xhslink.cn 短链展开为完整链接。
+
+    含 xhslink.cn 的行用 urllib 发 GET（跟随重定向），取最终 URL；
+    最终 URL 含 xiaohongshu.com 才替换原行，否则原样保留。
+    任何异常（网络不通、超时不等）打印 WARN 到 stderr 并保留原行。
+    """
+    if not text:
+        return text
+    out_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if "xhslink.cn" in stripped:
+            try:
+                req = urllib.request.Request(
+                    stripped,
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/120.0.0.0 Safari/537.36"
+                        )
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    final_url = resp.geturl()
+                if "xiaohongshu.com" in final_url:
+                    out_lines.append(final_url)
+                    continue
+                print(f"[WARN] 短链重定向目标不是小红书，保留原样: {stripped} -> {final_url}",
+                      file=sys.stderr)
+            except Exception as e:
+                print(f"[WARN] 解析小红书短链失败，保留原样: {stripped} ({e})",
+                      file=sys.stderr)
+        out_lines.append(line)
+    return "\n".join(out_lines)
 
 
 def generate_config_content(params: dict) -> tuple[str, str]:
@@ -331,39 +370,38 @@ def run_author_stats_enrich(queue, job):
             job["process"] = None
 
 
-def run_crawler(job_id: str, temp_config_dir: Path, params: dict):
-    """Run MediaCrawler in a subprocess and push output to a queue.
+def build_crawler_cmd(params: dict) -> list[str]:
+    """根据单个平台的参数构造爬虫命令。
 
-    We temporarily overwrite MediaCrawler/config/base_config.py and dy_config.py
-    with the generated config, then restore the originals after the run. This is
-    necessary because Python always puts the script directory first in sys.path,
-    so PYTHONPATH alone cannot override MediaCrawler/config."""
-    job = jobs[job_id]
-    queue = job["queue"]
-
+    仅抖音（dy）勾选了扩展字段（SELECTED_EXTRA_FIELDS）时走 enriched wrapper；
+    其他平台一律走标准 main.py（xhs 勾扩展字段本就无意义）。
+    """
     platform = params.get("PLATFORM", "dy")
     login_type = params.get("LOGIN_TYPE", "qrcode")
     crawler_type = params.get("CRAWLER_TYPE", "search")
-
     selected_extra = params.get("SELECTED_EXTRA_FIELDS", [])
 
-    if selected_extra:
+    if platform == "dy" and selected_extra:
         wrapper_path = PROJECT_ROOT / "web-config-tool" / "extensions" / "run_crawler_enriched.py"
-        cmd = [
-            "uv", "run", "--active", str(wrapper_path),
-        ]
-    else:
-        cmd = [
-            "uv", "run", "--active", "main.py",
-            "--platform", platform,
-            "--lt", login_type,
-            "--type", crawler_type,
-        ]
+        return ["uv", "run", "--active", str(wrapper_path)]
+    return [
+        "uv", "run", "--active", "main.py",
+        "--platform", platform,
+        "--lt", login_type,
+        "--type", crawler_type,
+    ]
 
+
+def run_single_platform(job: dict, params: dict) -> int:
+    """运行单个平台的爬虫子进程，流式推送日志到 job["queue"]，返回退出码。
+
+    运行前备份并临时覆盖 MediaCrawler/config/ 下的配置文件，运行结束（含异常）
+    后在 finally 中自动恢复。
+    """
+    queue = job["queue"]
+    cmd = build_crawler_cmd(params)
     queue.put(f"[INFO] 启动爬虫任务: {' '.join(cmd)}\n")
-    queue.put(f"[INFO] 临时配置目录: {temp_config_dir}\n")
-    queue.put(f"[INFO] 运行前会备份并临时覆盖 MediaCrawler/config/ 下的配置文件，运行结束后自动恢复\n")
-
+    returncode = -1
     try:
         apply_config(params)
         queue.put("[INFO] 已备份原配置并应用网页配置\n")
@@ -382,31 +420,79 @@ def run_crawler(job_id: str, temp_config_dir: Path, params: dict):
             queue.put(line)
 
         process.wait()
-        if process.returncode == 0:
-            queue.put(f"[INFO] 爬虫任务结束，退出码: {process.returncode}\n")
+        returncode = process.returncode
+        if returncode == 0:
+            queue.put(f"[INFO] 爬虫任务结束，退出码: {returncode}\n")
         else:
-            queue.put(f"[ERROR] 爬虫任务异常结束，退出码: {process.returncode}\n")
-
-        # 可选：爬虫成功结束后自动运行作者统计后处理（网页开关 AUTO_ENRICH_AUTHOR_STATS，默认关闭）
-        if params.get("AUTO_ENRICH_AUTHOR_STATS"):
-            if process.returncode != 0:
-                queue.put(f"[WARN] 爬虫退出码 {process.returncode} 非 0，跳过自动作者统计后处理；"
-                          "可稍后手动运行 enrich_author_stats.py\n")
-            else:
-                # 0 条数据保护：search_contents 不存在或没有数据行时不启动后处理
-                search_file = latest_search_contents(str(params.get("SAVE_DATA_PATH") or ""))
-                row_count = count_search_rows(search_file) if search_file else 0
-                if row_count > 0:
-                    queue.put(f"[INFO] 检测到 {search_file} 共 {row_count} 条数据\n")
-                    run_author_stats_enrich(queue, job)
-                else:
-                    queue.put("[INFO] 本次未爬取到视频数据，跳过作者统计后处理\n")
-
+            queue.put(f"[ERROR] 爬虫任务异常结束，退出码: {returncode}\n")
     except Exception as e:
         queue.put(f"[ERROR] 启动失败: {e}\n")
     finally:
         restore_config()
         queue.put("[INFO] 已恢复 MediaCrawler/config/ 下的原始配置\n")
+        # 进程结束后清理，避免停止端点拿到已死进程误报「任务已结束」
+        if job.get("process") and job["process"].poll() is not None:
+            job["process"] = None
+    return returncode
+
+
+def run_crawler(job_id: str, temp_config_dir: Path, params: dict):
+    """Run MediaCrawler in a subprocess and push output to a queue.
+
+    支持多平台串行：params 带 PLATFORMS 数组时按顺序逐个平台跑（每个平台复制
+    params 并覆盖 PLATFORM）；否则按旧的单平台行为运行。小红书平台会在运行前
+    自动展开输入里的 xhslink.cn 短链。
+
+    We temporarily overwrite MediaCrawler/config/base_config.py and dy_config.py
+    with the generated config, then restore the originals after the run. This is
+    necessary because Python always puts the script directory first in sys.path,
+    so PYTHONPATH alone cannot override MediaCrawler/config."""
+    job = jobs[job_id]
+    queue = job["queue"]
+
+    platforms = params.get("PLATFORMS") or [params.get("PLATFORM", "dy")]
+
+    queue.put(f"[INFO] 临时配置目录: {temp_config_dir}\n")
+    queue.put(f"[INFO] 运行前会备份并临时覆盖 MediaCrawler/config/ 下的配置文件，运行结束后自动恢复\n")
+
+    try:
+        total = len(platforms)
+        for idx, platform in enumerate(platforms, start=1):
+            if job.get("stopped_by_user"):
+                queue.put("[INFO] 任务已被手动停止，跳过后续平台\n")
+                break
+
+            platform_params = dict(params)
+            platform_params["PLATFORM"] = platform
+
+            # 小红书：detail/creator 列表里的 xhslink.cn 短链先展开为完整链接
+            if platform == "xhs":
+                for key in ("DY_SPECIFIED_ID_LIST", "DY_CREATOR_ID_LIST"):
+                    value = platform_params.get(key)
+                    if value and "xhslink.cn" in value:
+                        platform_params[key] = resolve_xhs_shortlinks(value)
+
+            if total > 1:
+                queue.put(f"[INFO] ====== 平台 {idx}/{total}: {platform} ======\n")
+
+            returncode = run_single_platform(job, platform_params)
+
+            # 可选：爬虫成功结束后自动运行作者统计后处理（网页开关 AUTO_ENRICH_AUTHOR_STATS，默认关闭）
+            # 仅抖音平台支持（作者统计后处理只针对抖音数据）
+            if platform == "dy" and params.get("AUTO_ENRICH_AUTHOR_STATS"):
+                if returncode != 0:
+                    queue.put(f"[WARN] 爬虫退出码 {returncode} 非 0，跳过自动作者统计后处理；"
+                              "可稍后手动运行 enrich_author_stats.py\n")
+                else:
+                    # 0 条数据保护：search_contents 不存在或没有数据行时不启动后处理
+                    search_file = latest_search_contents(str(params.get("SAVE_DATA_PATH") or ""))
+                    row_count = count_search_rows(search_file) if search_file else 0
+                    if row_count > 0:
+                        queue.put(f"[INFO] 检测到 {search_file} 共 {row_count} 条数据\n")
+                        run_author_stats_enrich(queue, job)
+                    else:
+                        queue.put("[INFO] 本次未爬取到视频数据，跳过作者统计后处理\n")
+    finally:
         job["finished"] = True
 
 
@@ -504,9 +590,21 @@ def api_health():
     })
 
 
+@app.route("/api/resolve_xhs_link", methods=["POST"])
+def api_resolve_xhs_link():
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "")
+    return jsonify({"resolved": resolve_xhs_shortlinks(text)})
+
+
 @app.route("/")
 def index():
     return send_from_directory(str(Path(__file__).resolve().parent), "index.html")
+
+
+@app.route("/wizard")
+def wizard():
+    return send_from_directory(str(Path(__file__).resolve().parent), "wizard.html")
 
 
 if __name__ == "__main__":

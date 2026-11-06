@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediaCrawler 控制台 — 新建爬取任务</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2322d3ee'/%3E%3Cstop offset='1' stop-color='%238b5cf6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M12 2 21 7v10l-9 5-9-5V7z'/%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --cyan: #22d3ee;
+      --violet: #8b5cf6;
+      --hairline: rgba(255,255,255,0.08);
+    }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(1100px 550px at 85% -10%, rgba(139,92,246,0.09), transparent 60%),
+        radial-gradient(900px 500px at 5% -5%, rgba(34,211,238,0.08), transparent 60%),
+        var(--bg);
+      background-attachment: fixed;
+    }
+    /* faint grid texture */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(148,163,184,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148,163,184,0.05) 1px, transparent 1px);
+      background-size: 36px 36px;
+      -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
+              mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 78%);
+    }
+    header, main, footer, .page-head { position: relative; z-index: 1; }
+    #topbar { z-index: 40; }
+
+    pre {
+      white-space: pre;
+      word-wrap: normal;
+    }
+    .code-block {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .code-panel {
+      background-color: #0d1117;
+      border: 1px solid var(--hairline);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 6px 18px rgba(2,6,23,0.45);
+    }
+    /* terminal log panel: darker + subtle scanlines */
+    .terminal {
+      background-color: #05080f;
+      background-image: repeating-linear-gradient(0deg, rgba(148,163,184,0.03) 0 1px, transparent 1px 3px);
+      border: 1px solid var(--hairline);
+      box-shadow: inset 0 0 24px rgba(2,6,23,0.6);
+    }
+
+    /* product panels: quiet hairline + ambient shadow, glow reserved for active states */
+    .glass-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid var(--hairline);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 30px rgba(0,0,0,0.35);
+    }
+
+    /* top nav */
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 11px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #94a3b8;
+      transition: color .18s ease, background-color .18s ease;
+    }
+    .nav-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.05); }
+    /* semantic sub-cards (secondary panels inside step cards) */
+    .sub-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .sub-card-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .sub-card-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #67e8f9;
+      background: rgba(34,211,238,0.08);
+      border: 1px solid rgba(34,211,238,0.15);
+      flex: none;
+    }
+    /* comments-dependency dimming (visual only) */
+    .js-comments-dep { transition: opacity .2s ease; }
+    .js-comments-dep.dep-dim { opacity: .4; pointer-events: none; }
+    @media (max-width: 480px) {
+      .nav-link { font-size: 0; gap: 0; padding: 7px 8px; }
+      .nav-link svg { width: 15px; height: 15px; }
+      .brand-sub { display: none; }
+      #stepNav { scrollbar-width: none; }
+      #stepNav::-webkit-scrollbar { display: none; }
+    }
+    .version-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 9px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #67e8f9;
+      background: rgba(34,211,238,0.08);
+      border: 1px solid rgba(34,211,238,0.22);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 9999px;
+      background: #fbbf24;
+      box-shadow: 0 0 6px rgba(251,191,36,0.5);
+      transition: background .3s ease, box-shadow .3s ease;
+    }
+    .status-dot.ok { background: #34d399; box-shadow: 0 0 8px rgba(52,211,153,0.8); }
+    .status-dot.err { background: #f87171; box-shadow: 0 0 8px rgba(248,113,113,0.8); }
+
+    /* summary chips in page header */
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: 9999px;
+      font-size: 12px;
+      color: #cbd5e1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--hairline);
+      max-width: 260px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chip::before {
+      content: "";
+      width: 6px; height: 6px; border-radius: 9999px;
+      background: var(--cyan);
+      box-shadow: 0 0 6px rgba(34,211,238,0.7);
+      flex: none;
+    }
+    .chip.chip-violet::before { background: var(--violet); box-shadow: 0 0 6px rgba(139,92,246,0.7); }
+
+    /* sidebar stepper */
+    .step-nav-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      text-align: left;
+      color: #64748b;
+      cursor: pointer;
+      flex: none;
+      transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+    }
+    .step-nav-item:hover { color: #cbd5e1; background: rgba(255,255,255,0.03); }
+    .step-nav-item:focus-visible { outline: 2px solid rgba(34,211,238,0.6); outline-offset: 2px; }
+    .sn-icon { width: 17px; height: 17px; flex: none; }
+    .sn-body { display: flex; flex-direction: column; min-width: 0; }
+    .sn-title { font-size: 13px; font-weight: 600; color: #94a3b8; display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+    .sn-num { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10.5px; color: #475569; }
+    .sn-status {
+      display: none;
+      font-size: 11px;
+      color: #64748b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 132px;
+      margin-top: 1px;
+    }
+    .sn-state { display: none; margin-left: auto; flex: none; color: #34d399; opacity: 0; transform: scale(.6); transition: opacity .2s ease, transform .2s ease; }
+    @media (min-width: 1024px) {
+      .sn-status { display: block; }
+      .sn-state { display: flex; }
+    }
+    .step-nav-item.is-current {
+      background: rgba(34,211,238,0.07);
+      border-color: rgba(34,211,238,0.25);
+      color: #a5f3fc;
+    }
+    .step-nav-item.is-current::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 9px; bottom: 9px;
+      width: 3px;
+      border-radius: 3px;
+      background: linear-gradient(180deg, var(--cyan), var(--violet));
+      box-shadow: 0 0 8px rgba(34,211,238,0.55);
+    }
+    .step-nav-item.is-current .sn-title { color: #cffafe; }
+    .step-nav-item.is-current .sn-num { color: #67e8f9; }
+    .step-nav-item.is-done .sn-title { color: #6ee7b7; }
+    .step-nav-item.is-done .sn-num { color: #34d399; }
+    .step-nav-item.is-done .sn-state { opacity: 1; transform: scale(1); }
+
+    /* glowing step number badges */
+    .step-badge {
+      background: radial-gradient(circle at 32% 30%, rgba(103,232,249,0.95), rgba(14,116,144,0.95));
+      color: #04121a;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      box-shadow: 0 0 12px rgba(34,211,238,0.45), 0 0 0 1px rgba(34,211,238,0.55);
+    }
+
+    /* selectable mode/platform tiles */
+    .mode-inner {
+      position: relative;
+      border-color: rgba(255,255,255,0.09);
+      background: rgba(255,255,255,0.02);
+      transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+    }
+    .mode-inner .tile-icon { color: #64748b; transition: color .2s ease; }
+    .mode-card:hover .mode-inner,
+    .plat-card:hover .mode-inner {
+      border-color: rgba(34,211,238,0.4);
+    }
+    .mode-card input:checked + div,
+    .plat-card input:checked + div {
+      border-color: rgba(34,211,238,0.75);
+      background: rgba(34,211,238,0.07);
+      box-shadow: 0 0 14px rgba(34,211,238,0.18), inset 0 0 0 1px rgba(34,211,238,0.12);
+    }
+    .mode-card input:checked + div .tile-icon,
+    .plat-card input:checked + div .tile-icon { color: var(--cyan); }
+    .mode-card input:checked + div::after,
+    .plat-card input:checked + div::after {
+      content: "\2713";
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 700;
+      text-shadow: 0 0 8px rgba(34,211,238,0.8);
+    }
+    .mode-card input:focus-visible + div,
+    .plat-card input:focus-visible + div {
+      outline: 2px solid rgba(34,211,238,0.7);
+      outline-offset: 2px;
+    }
+
+    /* segmented control (crawler type) */
+    .seg-control {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      padding: 3px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--hairline);
+      max-width: 100%;
+    }
+    .seg-tile {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 13px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #94a3b8;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: color .18s ease, background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+    .seg-tile .tile-icon { color: #64748b; transition: color .18s ease; }
+    .seg-item:hover .seg-tile { color: #cbd5e1; }
+    .seg-item input:checked + .seg-tile {
+      background: rgba(34,211,238,0.1);
+      border-color: rgba(34,211,238,0.45);
+      color: #67e8f9;
+      box-shadow: 0 0 10px rgba(34,211,238,0.14);
+    }
+    .seg-item input:checked + .seg-tile .tile-icon { color: var(--cyan); }
+    .seg-item input:focus-visible + .seg-tile { outline: 2px solid rgba(34,211,238,0.7); outline-offset: 2px; }
+
+    /* toggle switch (native checkbox kept focusable via sr-only) */
+    .toggle-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+    .toggle-row .toggle-track { margin-top: 1px; }
+    .toggle-track {
+      position: relative;
+      flex: none;
+      width: 36px;
+      height: 20px;
+      border-radius: 9999px;
+      background: rgba(148,163,184,0.22);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+      transition: background .2s ease, box-shadow .2s ease;
+    }
+    .toggle-track::after {
+      content: "";
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      border-radius: 9999px;
+      background: #cbd5e1;
+      transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
+    }
+    input:checked + .toggle-track {
+      background: rgba(34,211,238,0.35);
+      box-shadow: inset 0 0 0 1px rgba(34,211,238,0.5);
+    }
+    input:checked + .toggle-track::after {
+      transform: translateX(16px);
+      background: var(--cyan);
+      box-shadow: 0 0 8px rgba(34,211,238,0.7);
+    }
+    input:focus-visible + .toggle-track { outline: 2px solid rgba(34,211,238,0.7); outline-offset: 2px; }
+
+    /* refined checkboxes for field groups */
+    .field-checkbox, .author-field-checkbox {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 5px;
+      border: 1.5px solid rgba(148,163,184,0.4);
+      background: rgba(255,255,255,0.03);
+      cursor: pointer;
+      flex: none;
+      position: relative;
+      transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+    .field-checkbox:hover, .author-field-checkbox:hover { border-color: rgba(34,211,238,0.55); }
+    .field-checkbox:checked, .author-field-checkbox:checked {
+      background: rgba(34,211,238,0.9);
+      border-color: var(--cyan);
+      box-shadow: 0 0 8px rgba(34,211,238,0.35);
+    }
+    .field-checkbox:checked::after, .author-field-checkbox:checked::after {
+      content: "";
+      position: absolute;
+      left: 4.5px; top: 1.5px;
+      width: 5px; height: 9px;
+      border: solid #04121a;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+    .field-checkbox:focus-visible, .author-field-checkbox:focus-visible {
+      outline: 2px solid rgba(34,211,238,0.7);
+      outline-offset: 2px;
+    }
+
+    /* form controls */
+    input[type="checkbox"], input[type="radio"] {
+      accent-color: var(--cyan);
+    }
+    input[type="number"], input[type="text"] {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 32px !important;
+      cursor: pointer;
+    }
+    select option {
+      background-color: #0f1420;
+      color: #e2e8f0;
+    }
+
+    /* window-chrome panel header (code editor tab bar) */
+    .panel-chrome {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+    }
+    .chrome-dots { display: flex; gap: 5px; flex: none; }
+    .chrome-dots span { width: 9px; height: 9px; border-radius: 9999px; display: block; }
+    .chrome-dots span:nth-child(1) { background: rgba(248,113,113,0.75); }
+    .chrome-dots span:nth-child(2) { background: rgba(251,191,36,0.75); }
+    .chrome-dots span:nth-child(3) { background: rgba(52,211,153,0.75); }
+    .chrome-title {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* status pill */
+    .status-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 5px 16px;
+      border-radius: 9999px;
+      font-size: 12px;
+      color: #94a3b8;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(148,163,184,0.18);
+      transition: color .2s ease, border-color .2s ease, box-shadow .2s ease;
+    }
+    .status-badge::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 9999px;
+      background: #64748b;
+    }
+    .status-running {
+      color: #67e8f9;
+      border-color: rgba(34,211,238,0.45);
+      box-shadow: 0 0 12px rgba(34,211,238,0.2);
+    }
+    .status-running::before {
+      background: var(--cyan);
+      box-shadow: 0 0 8px rgba(34,211,238,0.9);
+    }
+
+    /* pulsing REC dot */
+    .rec-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      background: #f87171;
+      box-shadow: 0 0 8px rgba(248,113,113,0.8);
+    }
+
+    /* advanced <details> */
+    details#advancedDetails > summary { list-style: none; }
+    details#advancedDetails > summary::-webkit-details-marker { display: none; }
+    details#advancedDetails .adv-chevron { transition: transform .22s ease; color: #64748b; }
+    details#advancedDetails[open] .adv-chevron { transform: rotate(180deg); color: var(--cyan); }
+    details#advancedDetails[open] > summary { border-bottom: 1px solid rgba(255,255,255,0.06); }
+
+    .log-line {
+      animation: fadeIn 0.1s ease-in;
+    }
+
+    /* ============ Motion & Ambience layer (additive) ============ */
+
+    /* A. drifting aurora blobs behind content (transform-only) */
+    .aurora {
+      position: fixed;
+      z-index: 0;
+      pointer-events: none;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.55;
+      will-change: transform;
+    }
+    .aurora-a {
+      width: 56vw; height: 56vw;
+      top: -18vw; right: -14vw;
+      background: radial-gradient(circle at 40% 40%, rgba(139,92,246,0.18), rgba(139,92,246,0.05) 55%, transparent 70%);
+    }
+    .aurora-b {
+      width: 48vw; height: 48vw;
+      bottom: -16vw; left: -12vw;
+      background: radial-gradient(circle at 60% 60%, rgba(34,211,238,0.15), rgba(34,211,238,0.04) 55%, transparent 70%);
+    }
+    #mcParticles {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    /* C. mouse-follow spotlight + cursor border glow on cards */
+    .glass-card { position: relative; }
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      z-index: 1;
+      background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(34,211,238,0.09), transparent 65%);
+      opacity: 0;
+      transition: opacity .35s ease;
+    }
+    .glass-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      pointer-events: none;
+      z-index: 2;
+      background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgba(34,211,238,0.45), transparent 70%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+              mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+              mask-composite: exclude;
+      opacity: 0;
+      transition: opacity .35s ease;
+    }
+    .glass-card.spot-on::before,
+    .glass-card.spot-on::after { opacity: 1; }
+
+    /* D. step progression */
+    @property --mc-angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: false;
+    }
+    .conic-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1.5px;
+      pointer-events: none;
+      z-index: 2;
+      background: conic-gradient(from var(--mc-angle),
+        rgba(34,211,238,0.9), rgba(139,92,246,0.6) 22%, transparent 42%,
+        transparent 62%, rgba(34,211,238,0.35) 82%, rgba(34,211,238,0.9));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+              mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+              mask-composite: exclude;
+      opacity: 0;
+      transition: opacity .5s ease;
+    }
+    .step-current .conic-ring { opacity: 1; }
+    .step-current {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 30px rgba(0,0,0,0.35), 0 0 26px rgba(34,211,238,0.13);
+    }
+    .step-done .step-badge {
+      background: radial-gradient(circle at 32% 30%, rgba(52,211,153,0.95), rgba(6,95,70,0.95));
+      box-shadow: 0 0 12px rgba(52,211,153,0.45), 0 0 0 1px rgba(52,211,153,0.55);
+    }
+    /* slim progress line at top of the form column */
+    .mc-progress {
+      height: 3px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .mc-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, var(--cyan), var(--violet));
+      box-shadow: 0 0 10px rgba(34,211,238,0.55);
+      transition: width .6s cubic-bezier(.22,.9,.3,1);
+    }
+
+    /* F. run button: shine sweep + ripple + running flow */
+    #runBtn { position: relative; overflow: hidden; }
+    #runBtn::after {
+      content: "";
+      position: absolute;
+      top: 0; bottom: 0; left: 0;
+      width: 100%;
+      pointer-events: none;
+      background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%);
+      transform: translateX(-130%) skewX(-14deg);
+    }
+    .mc-ripple {
+      position: absolute;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.35);
+      pointer-events: none;
+      transform: scale(0);
+      opacity: 1;
+      animation: mcRipple .6s ease-out forwards;
+    }
+    .btn-running {
+      background-image: linear-gradient(90deg, #22d3ee, #8b5cf6, #22d3ee) !important;
+      background-size: 220% 100% !important;
+    }
+
+    /* F. input focus bloom */
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
+      box-shadow: 0 0 0 1px rgba(34,211,238,0.45), 0 0 20px rgba(34,211,238,0.14);
+    }
+
+    /* G. terminal scanline sweep */
+    .term-wrap { position: relative; overflow: hidden; border-radius: 10px; }
+    .term-wrap::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; top: -56px;
+      height: 56px;
+      pointer-events: none;
+      z-index: 3;
+      background: linear-gradient(180deg, transparent, rgba(34,211,238,0.05) 45%, rgba(34,211,238,0.09) 55%, transparent);
+    }
+
+    /* H. preview regenerated shimmer sweep (background-position, no layout) */
+    .panel-flash {
+      background-image: linear-gradient(105deg, transparent 42%, rgba(103,232,249,0.09) 50%, transparent 58%);
+      background-size: 220% 100%;
+      background-repeat: no-repeat;
+      animation: panelSweep .7s ease-out;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .status-running::before { animation: pulseDot 1.6s ease-in-out infinite; }
+      .rec-dot { animation: pulseDot 1.8s ease-in-out infinite; }
+      @keyframes pulseDot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.35; }
+      }
+      .aurora-a { animation: driftA 26s ease-in-out infinite alternate; }
+      .aurora-b { animation: driftB 32s ease-in-out infinite alternate; }
+      @keyframes driftA {
+        from { transform: translate3d(0, 0, 0) scale(1); }
+        to   { transform: translate3d(-6vw, 7vh, 0) scale(1.12); }
+      }
+      @keyframes driftB {
+        from { transform: translate3d(0, 0, 0) scale(1.05); }
+        to   { transform: translate3d(7vw, -6vh, 0) scale(0.95); }
+      }
+      .step-current .conic-ring { animation: mcSpin 3.2s linear infinite; }
+      @keyframes mcSpin { to { --mc-angle: 360deg; } }
+      .step-current .step-badge { animation: badgePulse 2s ease-in-out infinite; }
+      @keyframes badgePulse {
+        0%, 100% { box-shadow: 0 0 12px rgba(34,211,238,0.45), 0 0 0 1px rgba(34,211,238,0.55); }
+        50%      { box-shadow: 0 0 22px rgba(34,211,238,0.9),  0 0 0 1px rgba(34,211,238,0.95); }
+      }
+      #runBtn:hover::after {
+        transform: translateX(130%) skewX(-14deg);
+        transition: transform .65s ease;
+      }
+      .btn-running { animation: btnFlow 2.2s linear infinite; }
+      @keyframes btnFlow { to { background-position: 220% 0; } }
+      .term-wrap::after { animation: termScan 5.5s linear infinite; }
+      @keyframes termScan {
+        from { transform: translateY(0); }
+        to   { transform: translateY(360px); }
+      }
+      @keyframes mcRipple {
+        to { transform: scale(2.4); opacity: 0; }
+      }
+    }
+    @keyframes panelSweep {
+      from { background-position: 120% 0; }
+      to   { background-position: -30% 0; }
+    }
+  </style>
+</head>
+<body class="text-slate-300 min-h-screen">
+
+  <!-- Ambient background: drifting aurora blobs + constellation particles (aria-hidden, additive) -->
+  <div class="aurora aurora-a" aria-hidden="true"></div>
+  <div class="aurora aurora-b" aria-hidden="true"></div>
+  <canvas id="mcParticles" aria-hidden="true"></canvas>
+
+  <!-- ============ Top navigation bar ============ -->
+  <header id="topbar" class="sticky top-0 border-b border-white/[0.06] bg-[#0a0e1a]/80 backdrop-blur-md">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="flex-none">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#22d3ee"/>
+              <stop offset="1" stop-color="#8b5cf6"/>
+            </linearGradient>
+          </defs>
+          <path d="M12 2.6 20.4 7.3v9.4L12 21.4 3.6 16.7V7.3L12 2.6Z" stroke="url(#logoGrad)" stroke-width="1.6" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="2.4" fill="url(#logoGrad)"/>
+          <path d="M12 4.8v3M12 17v3M4.8 9.4l3 1.7M16.2 13l3 1.7M4.8 14.6l3-1.7M16.2 11l3-1.7" stroke="url(#logoGrad)" stroke-width="1.1" stroke-linecap="round" opacity="0.65"/>
+        </svg>
+        <span class="text-[15px] font-semibold text-slate-100 tracking-wide truncate">MediaCrawler <span class="text-slate-400 font-normal brand-sub">控制台</span></span>
+        <span class="version-pill hidden sm:inline-flex">v2.0 向导版</span>
+      </div>
+      <nav class="flex items-center gap-1 sm:gap-2" aria-label="顶部导航">
+        <a href="/" class="nav-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
+          经典模式
+        </a>
+        <a href="https://github.com/NanmiCoder/MediaCrawler" target="_blank" rel="noopener" class="nav-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+          文档
+        </a>
+        <div id="backendStatus" class="flex items-center gap-1.5 ml-1 pl-3 border-l border-white/[0.08]" title="正在检测后端连接…">
+          <span id="backendDot" class="status-dot"></span>
+          <span id="backendStatusText" class="text-xs text-slate-400 hidden sm:inline">检测中…</span>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ Page header zone ============ -->
+  <div class="page-head border-b border-white/[0.06]">
+    <div class="page-head-inner max-w-[1440px] mx-auto px-4 sm:px-6 py-6 sm:py-7 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-semibold text-slate-100 tracking-wide">新建爬取任务</h1>
+        <p class="mt-1.5 text-[13px] text-slate-400">按步骤完成配置，右侧实时预览生成的配置文件，确认无误后可直接启动爬虫。</p>
+      </div>
+      <div id="summaryChips" class="flex flex-wrap items-center gap-2" aria-live="polite">
+        <span class="chip" id="chipMode">单平台</span>
+        <span class="chip chip-violet" id="chipPlat">抖音</span>
+        <span class="chip" id="chipType">关键词搜索</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <div class="lg:grid lg:grid-cols-[232px_minmax(0,1fr)] lg:gap-8">
+
+      <!-- ============ Sidebar stepper ============ -->
+      <nav id="stepNav" aria-label="步骤导航"
+           class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible lg:sticky lg:top-20 self-start pb-2 lg:pb-0 mb-5 lg:mb-0 -mx-4 px-4 lg:mx-0 lg:px-0">
+        <button type="button" class="step-nav-item" data-step="0">
+          <svg class="sn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12.5 9 5 9-5"/></svg>
+          <span class="sn-body">
+            <span class="sn-title"><span class="sn-num">01</span>模式</span>
+            <span class="sn-status" data-sn-status="0">单平台</span>
+          </span>
+          <span class="sn-state"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" opacity="0.4"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg></span>
+        </button>
+        <button type="button" class="step-nav-item" data-step="1">
+          <svg class="sn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3Z"/></svg>
+          <span class="sn-body">
+            <span class="sn-title"><span class="sn-num">02</span>平台</span>
+            <span class="sn-status" data-sn-status="1">抖音</span>
+          </span>
+          <span class="sn-state"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" opacity="0.4"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg></span>
+        </button>
+        <button type="button" class="step-nav-item" data-step="2">
+          <svg class="sn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+          <span class="sn-body">
+            <span class="sn-title"><span class="sn-num">03</span>目标</span>
+            <span class="sn-status" data-sn-status="2">关键词搜索</span>
+          </span>
+          <span class="sn-state"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" opacity="0.4"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg></span>
+        </button>
+        <button type="button" class="step-nav-item" data-step="3">
+          <svg class="sn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+          <span class="sn-body">
+            <span class="sn-title"><span class="sn-num">04</span>数据</span>
+            <span class="sn-status" data-sn-status="3">评论·开 媒体·关</span>
+          </span>
+          <span class="sn-state"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" opacity="0.4"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg></span>
+        </button>
+        <button type="button" class="step-nav-item" data-step="4">
+          <svg class="sn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
+          <span class="sn-body">
+            <span class="sn-title"><span class="sn-num">05</span>高级</span>
+            <span class="sn-status" data-sn-status="4">默认</span>
+          </span>
+          <span class="sn-state"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" opacity="0.4"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg></span>
+        </button>
+      </nav>
+
+      <!-- ============ Main content: steps + preview ============ -->
+      <div class="min-w-0 xl:grid xl:grid-cols-12 xl:gap-8">
+      <section class="xl:col-span-7 space-y-6">
+
+        <!-- Step progression line -->
+        <div class="mc-progress" aria-hidden="true"><div class="mc-progress-fill" id="mcProgressFill"></div></div>
+
+        <!-- Step 1: 模式 -->
+        <div id="stepCard1" class="glass-card rounded-2xl p-5 sm:p-6 scroll-mt-24">
+          <div class="flex items-start gap-3 mb-4">
+            <span class="step-badge flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold flex-none mt-0.5">1</span>
+            <div>
+              <h3 class="text-[15px] font-semibold text-slate-100">选择模式</h3>
+              <p class="mt-1 text-[13px] text-slate-400">单平台一次只爬一个平台；跨平台搜索会用同一组关键词按顺序依次爬抖音和小红书。</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="mode-card cursor-pointer">
+              <input type="radio" name="MODE" id="MODE_single" value="single" class="sr-only" checked />
+              <div class="mode-inner rounded-[10px] border p-4">
+                <svg class="tile-icon mb-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                <div class="text-sm font-semibold text-slate-100">单平台</div>
+                <div class="mt-1 text-xs text-slate-400">只在一个平台上运行，支持关键词搜索、指定视频/笔记、指定创作者三种方式。</div>
+              </div>
+            </label>
+            <label class="mode-card cursor-pointer">
+              <input type="radio" name="MODE" id="MODE_cross" value="cross" class="sr-only" />
+              <div class="mode-inner rounded-[10px] border p-4">
+                <svg class="tile-icon mb-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><path d="M13 7h4a2 2 0 0 1 2 2v2M11 17H7a2 2 0 0 1-2-2v-2"/></svg>
+                <div class="text-sm font-semibold text-slate-100">跨平台搜索</div>
+                <div class="mt-1 text-xs text-slate-400">用同一组关键词依次搜索多个平台（目前支持抖音、小红书），结果分别保存。</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Step 2: 平台 -->
+        <div id="stepCard2" class="glass-card rounded-2xl p-5 sm:p-6 scroll-mt-24">
+          <div class="flex items-start gap-3 mb-4">
+            <span class="step-badge flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold flex-none mt-0.5">2</span>
+            <div>
+              <h3 class="text-[15px] font-semibold text-slate-100">选择平台</h3>
+              <p class="mt-1 text-[13px] text-slate-400">选择要爬取的平台；不同平台的能力与字段支持略有差异。</p>
+            </div>
+          </div>
+          <div id="platformSingleBlock">
+            <select id="PLATFORM" class="w-full sm:w-72 rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition">
+              <option value="dy" selected>dy（抖音）</option>
+              <option value="xhs">xhs（小红书）</option>
+              <option value="ks">ks（快手）</option>
+              <option value="bili">bili（B站）</option>
+              <option value="wb">wb（微博）</option>
+              <option value="tieba">tieba（贴吧）</option>
+              <option value="zhihu">zhihu（知乎）</option>
+            </select>
+          </div>
+          <div id="platformCrossBlock" class="hidden">
+            <p class="text-[13px] text-slate-400 mb-3">勾选要依次搜索的平台（至少一个；目前仅抖音和小红书有专属配置支持）。</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="plat-card cursor-pointer">
+                <input type="checkbox" id="PLAT_CB_dy" value="dy" class="sr-only" checked />
+                <div class="mode-inner rounded-[10px] border p-4">
+                  <svg class="tile-icon mb-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V6l10-2v11.5"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>
+                  <div class="text-sm font-semibold text-slate-100">dy（抖音）</div>
+                  <div class="mt-1 text-xs text-slate-400">支持发布时间筛选、扩展字段与作者统计后处理。</div>
+                </div>
+              </label>
+              <label class="plat-card cursor-pointer">
+                <input type="checkbox" id="PLAT_CB_xhs" value="xhs" class="sr-only" />
+                <div class="mode-inner rounded-[10px] border p-4">
+                  <svg class="tile-icon mb-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+                  <div class="text-sm font-semibold text-slate-100">xhs（小红书）</div>
+                  <div class="mt-1 text-xs text-slate-400">按热度排序搜索笔记，短链会自动展开。</div>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: 爬取方式与目标 -->
+        <div id="stepCard3" class="glass-card rounded-2xl p-5 sm:p-6 scroll-mt-24">
+          <div class="flex items-start gap-3 mb-4">
+            <span class="step-badge flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold flex-none mt-0.5">3</span>
+            <div>
+              <h3 class="text-[15px] font-semibold text-slate-100">爬取方式与目标</h3>
+              <p class="mt-1 text-[13px] text-slate-400">三种方式互斥，选择一种并填写对应的目标内容。</p>
+            </div>
+          </div>
+          <div id="crawlerTypeBlock" class="mb-5">
+            <div class="seg-control">
+              <label class="seg-item">
+                <input type="radio" name="CRAWLER_TYPE" value="search" class="sr-only" checked />
+                <span class="seg-tile">
+                  <svg class="tile-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                  关键词搜索
+                </span>
+              </label>
+              <label class="seg-item">
+                <input type="radio" name="CRAWLER_TYPE" value="detail" class="sr-only" />
+                <span class="seg-tile">
+                  <svg class="tile-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+                  指定视频/笔记
+                </span>
+              </label>
+              <label class="seg-item">
+                <input type="radio" name="CRAWLER_TYPE" value="creator" class="sr-only" />
+                <span class="seg-tile">
+                  <svg class="tile-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/></svg>
+                  指定创作者
+                </span>
+              </label>
+            </div>
+          </div>
+          <div id="crossSearchNote" class="hidden mb-5 rounded-[10px] bg-cyan-500/10 border border-cyan-500/30 px-3 py-2 text-[13px] text-cyan-200">
+            跨平台搜索模式固定使用关键词搜索（search），依次在所选平台上执行。
+          </div>
+
+          <!-- search 块 -->
+          <div id="blockSearch" class="space-y-4">
+            <div>
+              <label class="block text-[13px] font-medium text-slate-200 mb-1.5">关键词 <span class="text-slate-500 font-normal">（逗号分隔）</span></label>
+              <div class="flex items-start gap-2">
+                <textarea id="KEYWORDS" rows="2" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition">非遗,非物质文化遗产,剪纸,皮影戏</textarea>
+                <button type="button" id="resetKeywordsBtn" class="shrink-0 rounded-[10px] bg-white/5 border border-white/10 px-3 py-2 text-[13px] font-medium text-slate-300 hover:bg-white/10 hover:border-cyan-400/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition">重置</button>
+              </div>
+            </div>
+            <div id="publishTimeBlock">
+              <label class="block text-[13px] font-medium text-slate-200 mb-1.5">发布时间筛选 <span class="text-slate-500 font-normal">（仅抖音生效）</span></label>
+              <select id="PUBLISH_TIME_TYPE" class="w-full sm:w-72 rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition">
+                <option value="0" selected>0 — 不限</option>
+                <option value="1">1 — 一天内</option>
+                <option value="7">7 — 一周内</option>
+                <option value="180">180 — 半年内</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- detail 块 -->
+          <div id="blockDetail" class="hidden space-y-4">
+            <div>
+              <label class="block text-[13px] font-medium text-slate-200 mb-1.5">指定视频/笔记 ID 或链接 <span class="text-slate-500 font-normal">（每行一个；抖音填视频 ID 或链接）</span><span id="xsecHintDetail" class="hidden text-amber-400 font-normal">（小红书必须填带 xsec_token 的完整笔记链接；粘贴 xhslink.cn 短链后离开输入框会自动展开）</span></label>
+              <textarea id="DY_SPECIFIED_ID_LIST" rows="3" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition"></textarea>
+            </div>
+          </div>
+
+          <!-- creator 块 -->
+          <div id="blockCreator" class="hidden space-y-4">
+            <div>
+              <label class="block text-[13px] font-medium text-slate-200 mb-1.5">指定创作者 ID / 主页链接 <span class="text-slate-500 font-normal">（每行一个）</span><span id="xsecHintCreator" class="hidden text-amber-400 font-normal">（小红书必须填带 xsec_token 和 xsec_source 的完整主页链接；粘贴 xhslink.cn 短链后离开输入框会自动展开）</span></label>
+              <textarea id="DY_CREATOR_ID_LIST" rows="3" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: 要爬哪些数据 -->
+        <div id="stepCard4" class="glass-card rounded-2xl p-5 sm:p-6 scroll-mt-24">
+          <div class="flex items-start gap-3 mb-5">
+            <span class="step-badge flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold flex-none mt-0.5">4</span>
+            <div>
+              <h3 class="text-[15px] font-semibold text-slate-100">要爬哪些数据</h3>
+              <p class="mt-1 text-[13px] text-slate-400">控制评论、媒体与扩展字段的采集范围。</p>
+            </div>
+          </div>
+
+          <!-- 评论数据 -->
+          <div class="sub-card mb-4">
+            <div class="sub-card-head">
+              <span class="sub-card-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+              <div>
+                <h4 class="text-[13px] font-semibold text-slate-200 tracking-wider">评论数据</h4>
+                <p class="mt-0.5 text-xs text-slate-400">是否采集评论内容，以及单条视频的评论数量上限。</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+              <label class="toggle-row">
+                <input id="ENABLE_GET_COMMENTS" type="checkbox" class="sr-only" checked />
+                <span class="toggle-track" aria-hidden="true"></span>
+                <span class="text-sm text-slate-200">抓取评论</span>
+              </label>
+              <label class="toggle-row js-comments-dep">
+                <input id="ENABLE_GET_SUB_COMMENTS" type="checkbox" class="sr-only" />
+                <span class="toggle-track" aria-hidden="true"></span>
+                <span class="text-sm text-slate-200">抓取子评论</span>
+              </label>
+              <div class="js-comments-dep sm:col-span-2">
+                <label class="block text-[13px] font-medium text-slate-200 mb-1.5">单视频最大评论数 <span class="text-slate-500 font-normal">（填 999999 近似不限制）</span></label>
+                <input id="CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES" type="number" min="0" value="10" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-7">
+            <!-- 媒体文件 -->
+            <div class="sub-card">
+              <div class="sub-card-head">
+                <span class="sub-card-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></span>
+                <div>
+                  <h4 class="text-[13px] font-semibold text-slate-200 tracking-wider">媒体文件</h4>
+                  <p class="mt-0.5 text-xs text-slate-400">图片 / 视频等文件的本地保存行为。</p>
+                </div>
+              </div>
+              <label class="toggle-row">
+                <input id="ENABLE_GET_MEIDAS" type="checkbox" class="sr-only" />
+                <span class="toggle-track" aria-hidden="true"></span>
+                <span>
+                  <span class="block text-sm text-slate-200">下载媒体文件</span>
+                  <span class="block mt-0.5 text-xs text-slate-400">勾选后把图片/视频保存到本地目录，注意磁盘占用</span>
+                </span>
+              </label>
+            </div>
+
+            <!-- 数量上限 -->
+            <div class="sub-card">
+              <div class="sub-card-head">
+                <span class="sub-card-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg></span>
+                <div>
+                  <h4 class="text-[13px] font-semibold text-slate-200 tracking-wider">数量上限</h4>
+                  <p class="mt-0.5 text-xs text-slate-400">单次任务的总体抓取规模控制。</p>
+                </div>
+              </div>
+              <label class="block text-[13px] font-medium text-slate-200 mb-1.5">最大爬取数量</label>
+              <input id="CRAWLER_MAX_NOTES_COUNT" type="number" min="1" value="100" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+              <p class="mt-1.5 text-xs text-slate-400">单次任务最多抓取的笔记/视频条数</p>
+            </div>
+          </div>
+
+          <!-- 抖音专属字段（JS 渲染） -->
+          <div id="douyinFieldsCard">
+            <div class="flex items-center justify-between mb-1 pb-2 border-b border-white/[0.06]">
+              <h4 class="text-[13px] font-semibold text-slate-200 tracking-wider">抖音扩展字段</h4>
+              <div class="flex gap-2">
+                <button type="button" id="selectAllFieldsBtn" class="rounded-lg bg-cyan-500/10 border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 transition">全选</button>
+                <button type="button" id="deselectAllFieldsBtn" class="rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/10 hover:border-cyan-400/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition">取消全选</button>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400 mt-2 mb-4">不勾选不影响基础数据爬取。以下字段来自抖音接口原始返回，但 MediaCrawler 默认不保存；勾选后会在 <code>data/douyin/extra_fields/</code> 中生成额外 JSONL，通过 <code>aweme_id</code> 与主数据关联。</p>
+            <div id="extraFieldGroups" class="space-y-6"></div>
+            <label class="toggle-row mt-4 pt-4 border-t border-white/[0.06]">
+              <input id="USE_WEB_AUTHOR_VERIFICATION" type="checkbox" class="sr-only" />
+              <span class="toggle-track" aria-hidden="true"></span>
+              <span>
+                <span class="block text-sm font-medium text-slate-200">从浏览器主页提取认证信息</span>
+                <span class="block mt-0.5 text-xs text-slate-400">更准但更慢；每个作者会额外打开一次抖音主页</span>
+              </span>
+            </label>
+
+            <!-- 作者统计（后处理） -->
+            <div class="mt-7">
+              <div class="flex items-center justify-between mb-1 pb-2 border-b border-white/[0.06]">
+                <h4 class="text-[13px] font-semibold text-slate-200 tracking-wider">作者统计（后处理）</h4>
+                <div class="flex gap-2">
+                  <button type="button" id="selectAllAuthorFieldsBtn" class="rounded-lg bg-cyan-500/10 border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-400/50 transition">全选</button>
+                  <button type="button" id="deselectAllAuthorFieldsBtn" class="rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/10 hover:border-cyan-400/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition">取消全选</button>
+                </div>
+              </div>
+              <p class="text-xs text-slate-400 mt-2 mb-3">以下字段由 <code>enrich_author_stats.py</code> 后处理采集，不影响爬虫主流程。勾选结果会在启动爬虫时保存到 <code>author_stats_fields.json</code>，脚本运行时自动读取。</p>
+              <label class="toggle-row mb-4">
+                <input id="AUTO_ENRICH_AUTHOR_STATS" type="checkbox" class="sr-only" />
+                <span class="toggle-track" aria-hidden="true"></span>
+                <span>
+                  <span class="block text-sm font-medium text-slate-200">爬虫结束后自动运行作者统计后处理</span>
+                  <span class="block mt-0.5 text-xs text-slate-400">默认关闭；不勾选时可在爬虫结束后手动运行脚本进行断点检查</span>
+                </span>
+              </label>
+              <div id="authorFieldGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: 高级设置 -->
+        <div id="stepCard5" class="glass-card rounded-2xl overflow-hidden scroll-mt-24">
+          <details id="advancedDetails">
+            <summary class="cursor-pointer p-5 sm:p-6 select-none">
+              <span class="step-badge inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mr-2">5</span><span class="text-[15px] font-semibold text-slate-100">高级设置</span>
+              <span class="ml-2 text-[13px] text-slate-500">（一般保持默认即可，点击展开）</span>
+              <svg class="adv-chevron inline-block float-right mt-1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </summary>
+            <div class="px-5 sm:px-6 pb-5 sm:pb-6 pt-5 space-y-7">
+              <div>
+                <h4 class="text-[13px] font-semibold text-slate-200 mb-3 pb-2 border-b border-white/[0.06] tracking-wider">登录与输出</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">登录方式</label>
+                    <select id="LOGIN_TYPE" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition">
+                      <option value="qrcode" selected>qrcode（二维码）</option>
+                      <option value="phone">phone（手机号）</option>
+                      <option value="cookie">cookie（Cookie）</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">起始页</label>
+                    <input id="START_PAGE" type="number" min="1" value="1" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">Cookie <span class="text-slate-500 font-normal">（登录方式为 cookie 时填写）</span></label>
+                    <textarea id="COOKIES" rows="2" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition"></textarea>
+                  </div>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">保存格式</label>
+                    <select id="SAVE_DATA_OPTION" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition">
+                      <option value="csv" selected>csv</option>
+                      <option value="json">json</option>
+                      <option value="jsonl">jsonl</option>
+                      <option value="excel">excel</option>
+                      <option value="sqlite">sqlite</option>
+                      <option value="db">db</option>
+                      <option value="postgres">postgres</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">保存路径</label>
+                    <input id="SAVE_DATA_PATH" type="text" value="" placeholder="留空默认：项目根目录/data-outputs" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 class="text-[13px] font-semibold text-slate-200 mb-3 pb-2 border-b border-white/[0.06] tracking-wider">浏览器</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                  <label class="toggle-row">
+                    <input id="HEADLESS" type="checkbox" class="sr-only" />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span class="text-sm text-slate-200">无头模式（不显示浏览器）</span>
+                  </label>
+                  <label class="toggle-row">
+                    <input id="SAVE_LOGIN_STATE" type="checkbox" class="sr-only" checked />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span class="text-sm text-slate-200">保存登录状态</span>
+                  </label>
+                  <label class="toggle-row">
+                    <input id="ENABLE_CDP_MODE" type="checkbox" class="sr-only" checked />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span class="text-sm text-slate-200">启用 CDP 模式（推荐）</span>
+                  </label>
+                  <label class="toggle-row">
+                    <input id="CDP_HEADLESS" type="checkbox" class="sr-only" />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span class="text-sm text-slate-200">CDP 无头模式</span>
+                  </label>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">CDP 调试端口</label>
+                    <input id="CDP_DEBUG_PORT" type="number" value="9222" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                  </div>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">自定义浏览器路径</label>
+                    <input id="CUSTOM_BROWSER_PATH" type="text" placeholder="/Applications/Google Chrome.app/..." class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                  </div>
+                  <label class="toggle-row">
+                    <input id="CDP_CONNECT_EXISTING" type="checkbox" class="sr-only" checked />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span class="text-sm text-slate-200">连接已打开的浏览器</span>
+                  </label>
+                  <label class="toggle-row">
+                    <input id="AUTO_CLOSE_BROWSER" type="checkbox" class="sr-only" checked />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span class="text-sm text-slate-200">结束后关闭浏览器</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <h4 class="text-[13px] font-semibold text-slate-200 mb-3 pb-2 border-b border-white/[0.06] tracking-wider">性能与代理</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">最大并发数</label>
+                    <input id="MAX_CONCURRENCY_NUM" type="number" min="1" value="1" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                  </div>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">请求间隔（秒）</label>
+                    <input id="CRAWLER_MAX_SLEEP_SEC" type="number" min="0" step="0.5" value="3" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                  </div>
+                  <label class="toggle-row">
+                    <input id="ENABLE_IP_PROXY" type="checkbox" class="sr-only" />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span class="text-sm text-slate-200">启用 IP 代理</span>
+                  </label>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">代理池数量</label>
+                    <input id="IP_PROXY_POOL_COUNT" type="number" min="1" value="2" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                  </div>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">代理提供商</label>
+                    <select id="IP_PROXY_PROVIDER_NAME" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition">
+                      <option value="kuaidaili" selected>kuaidaili（快代理）</option>
+                      <option value="wandouhttp">wandouhttp（豌豆 HTTP）</option>
+                      <option value="static">static（自建/固定代理）</option>
+                    </select>
+                    <p class="mt-1.5 text-xs text-slate-400">
+                      kuaidaili / wandouhttp 为第三方付费代理，需自行注册并配置环境变量。static 为固定代理地址。
+                    </p>
+                  </div>
+                  <div>
+                    <label class="block text-[13px] font-medium text-slate-200 mb-1.5">静态代理地址</label>
+                    <input id="STATIC_PROXY_URL" type="text" placeholder="http://user:pass@host:port" class="w-full rounded-[10px] bg-[#111827]/80 border border-slate-700 text-slate-200 placeholder-slate-500 shadow-inner focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-3 py-2 text-sm transition" />
+                    <p class="mt-1.5 text-xs text-slate-400">仅当「代理提供商」选择 static 时生效。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <!-- Preview + Actions -->
+      <aside class="xl:col-span-5 mt-6 xl:mt-0">
+        <div class="glass-card rounded-2xl p-5 sm:p-6 sticky top-20">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-[15px] font-semibold text-slate-100">实时预览</h3>
+            <div id="previewPlatWrap" class="hidden items-center gap-2">
+              <label for="previewPlatform" class="text-xs text-slate-400">预览平台</label>
+              <select id="previewPlatform" class="rounded-lg bg-[#111827]/80 border border-slate-700 text-slate-200 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50 px-2 py-1 text-xs transition"></select>
+            </div>
+          </div>
+
+          <!-- Run command -->
+          <div class="mb-4 code-panel rounded-[10px] overflow-hidden">
+            <div class="panel-chrome">
+              <span class="chrome-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="chrome-title text-emerald-400/80">运行命令</span>
+              <button id="copyRunCommand" type="button" class="ml-auto text-xs text-cyan-300 hover:text-cyan-100 font-medium transition">复制</button>
+            </div>
+            <code id="runCommand" class="code-block block text-xs text-emerald-300 px-4 py-3 overflow-x-auto whitespace-pre"></code>
+          </div>
+
+          <!-- base_config.py -->
+          <div class="mb-5">
+            <div class="code-panel rounded-[10px] overflow-hidden">
+              <div class="panel-chrome">
+                <span class="chrome-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span class="chrome-title">base_config.py</span>
+              </div>
+              <pre id="baseConfigPreview" class="code-block text-slate-200 text-xs p-4 overflow-x-auto max-h-64"></pre>
+            </div>
+          </div>
+
+          <!-- 平台专属配置（dy_config.py / xhs_config.py，随平台切换） -->
+          <div class="mb-5">
+            <div class="code-panel rounded-[10px] overflow-hidden">
+              <div class="panel-chrome">
+                <span class="chrome-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span id="platformConfigTitle" class="chrome-title">dy_config.py</span>
+              </div>
+              <pre id="platConfigPreview" class="code-block text-slate-200 text-xs p-4 overflow-x-auto max-h-64"></pre>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="space-y-3">
+            <button id="runBtn" type="button" class="w-full rounded-[10px] bg-gradient-to-r from-cyan-400 to-sky-500 px-4 py-2.5 text-sm font-bold text-slate-950 tracking-wider shadow-[0_0_18px_rgba(34,211,238,0.35)] hover:shadow-[0_0_28px_rgba(34,211,238,0.55)] hover:from-cyan-300 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-[#0a0e1a] disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none transition">
+              <span class="inline-flex items-center justify-center gap-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.54.84l10.2-6.5a1 1 0 0 0 0-1.68L9.54 4.66A1 1 0 0 0 8 5.5Z"/></svg>
+                <span class="btn-label">启动爬虫</span>
+              </span>
+            </button>
+            <button id="stopBtn" type="button" disabled class="w-full rounded-[10px] bg-red-500/10 border border-red-500/50 px-4 py-2.5 text-sm font-semibold text-red-300 tracking-wider hover:bg-red-500/20 hover:shadow-[0_0_16px_rgba(239,68,68,0.25)] disabled:bg-white/[0.02] disabled:border-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed disabled:shadow-none focus:outline-none focus:ring-2 focus:ring-red-400/50 transition">
+              <span class="inline-flex items-center justify-center gap-2">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                停止爬虫
+              </span>
+            </button>
+            <div id="statusBadge" class="status-badge">状态：就绪</div>
+          </div>
+
+          <!-- Log terminal -->
+          <div class="mt-5 term-wrap terminal">
+            <div class="panel-chrome">
+              <span class="chrome-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span class="chrome-title flex items-center">
+                <span class="rec-dot mr-2"></span>运行日志
+                <span class="ml-2 text-[10px] font-mono font-medium tracking-widest text-red-400/90 border border-red-500/40 rounded px-1.5 py-0.5">REC</span>
+              </span>
+              <button id="clearLogs" type="button" class="ml-auto text-xs text-slate-500 hover:text-slate-300 transition">清空日志</button>
+            </div>
+            <div id="logContainer" class="code-block text-emerald-300/90 text-xs p-4 h-64 overflow-y-auto font-mono leading-relaxed">
+              <div class="text-slate-400">等待启动...</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-white/[0.06] mt-4">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <span>仅用于学术研究，请遵守平台规则与相关法律法规。</span>
+      <span class="font-mono">Powered by MediaCrawler · 向导版 v2.0</span>
+    </div>
+  </footer>
+
+  <script>
+    const API_BASE = ''; // use same host:port as the page
+    const STORAGE_KEY = 'mc-wizard-state';
+    const DEFAULT_KEYWORDS = '非遗,非物质文化遗产,剪纸,皮影戏';
+
+    // 抖音扩展字段分组（与经典配置页「字段选择」Tab 一致，用数组渲染避免手写大量 HTML）
+    const EXTRA_FIELD_GROUPS = [
+      {
+        title: '账号认证',
+        fields: [
+          { name: 'is_verified', label: '账号是否认证', desc: '是否有蓝V/黄V等认证标识' },
+          { name: 'verification_type', label: '认证类型', desc: '抖音内部认证类型代码' },
+          { name: 'enterprise_verify_reason', label: '企业认证说明', desc: '企业号认证时显示的说明文字' },
+          { name: 'is_enterprise_vip', label: '是否企业号', desc: '是否为企业认证账号' },
+          { name: 'is_gov_media_vip', label: '是否政务号', desc: '是否为政府或媒体认证账号' }
+        ]
+      },
+      {
+        title: '音乐信息',
+        fields: [
+          { name: 'music_id', label: '音乐 ID', desc: '视频使用的背景音乐 ID' },
+          { name: 'music_title', label: '音乐名称', desc: '视频使用的背景音乐名称' },
+          { name: 'music_author', label: '音乐作者', desc: '视频使用的背景音乐作者' }
+        ]
+      },
+      {
+        title: '内容与互动',
+        fields: [
+          { name: 'play_count', label: '播放量', desc: '视频播放次数。抖音网页接口通常返回 0，无法通过详情接口补全。' },
+          { name: 'challenge_tags', label: '话题/挑战标签', desc: '视频带的话题标签，多个以逗号分隔' }
+        ]
+      },
+      {
+        title: '商业信息',
+        fields: [
+          { name: 'is_ads', label: '是否广告', desc: '视频是否为广告内容' },
+          { name: 'has_anchor', label: '是否含商业锚点', desc: '是否挂了商品、地点、链接等锚点' }
+        ]
+      }
+    ];
+
+    // 作者统计（后处理）字段（与经典配置页一致）
+    const AUTHOR_FIELDS = [
+      { name: 'uid', label: '作者 UID', desc: '作者主页对应的抖音用户 ID' },
+      { name: 'nickname', label: '作者昵称', desc: '作者主页上的实时昵称（主输出中的昵称为脱敏值）' },
+      { name: 'signature', label: '作者签名', desc: '作者主页的个人简介/签名' },
+      { name: 'ip_location', label: 'IP 属地', desc: '作者主页展示的 IP 归属地' },
+      { name: 'follower_count', label: '粉丝数', desc: '作者主页粉丝数（自动换算 1.2w/3.4万 等缩写）' },
+      { name: 'total_favorited', label: '总获赞数', desc: '作者主页显示的全部作品获赞总数' },
+      { name: 'following_count', label: '关注数', desc: '作者关注的账号数量' },
+      { name: 'aweme_count', label: '作品数', desc: '作者发布的作品总数' },
+      { name: 'is_verified', label: '账号是否认证', desc: '是否有蓝V/黄V等认证标识' },
+      { name: 'verification_type', label: '认证类型', desc: '1=个人/黄 V，2=企业/蓝 V' },
+      { name: 'custom_verify', label: '认证说明（黄 V）', desc: '个人认证的说明文字，如「文化自媒体」' },
+      { name: 'enterprise_verify_reason', label: '企业认证说明（蓝 V）', desc: '企业号认证时显示的说明文字' }
+    ];
+
+    const ids = [
+      'PLATFORM', 'LOGIN_TYPE', 'KEYWORDS', 'COOKIES', 'START_PAGE',
+      'CRAWLER_MAX_NOTES_COUNT', 'SAVE_DATA_OPTION', 'SAVE_DATA_PATH', 'PUBLISH_TIME_TYPE',
+      'DY_SPECIFIED_ID_LIST', 'DY_CREATOR_ID_LIST', 'HEADLESS', 'SAVE_LOGIN_STATE',
+      'ENABLE_CDP_MODE', 'CDP_HEADLESS', 'CDP_DEBUG_PORT', 'CUSTOM_BROWSER_PATH',
+      'CDP_CONNECT_EXISTING', 'AUTO_CLOSE_BROWSER', 'MAX_CONCURRENCY_NUM', 'CRAWLER_MAX_SLEEP_SEC',
+      'ENABLE_IP_PROXY', 'IP_PROXY_POOL_COUNT', 'IP_PROXY_PROVIDER_NAME', 'STATIC_PROXY_URL',
+      'ENABLE_GET_COMMENTS', 'ENABLE_GET_SUB_COMMENTS', 'CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES',
+      'ENABLE_GET_MEIDAS', 'USE_WEB_AUTHOR_VERIFICATION', 'AUTO_ENRICH_AUTHOR_STATS'
+    ];
+
+    const inputs = {};
+    ids.forEach(id => {
+      inputs[id] = document.getElementById(id);
+    });
+
+    let currentJobId = null;
+    let eventSource = null;
+
+    function renderFieldGroups() {
+      const container = document.getElementById('extraFieldGroups');
+      container.innerHTML = EXTRA_FIELD_GROUPS.map(group => `
+        <div>
+          <h4 class="text-[13px] font-semibold text-slate-200 mb-3 pb-2 border-b border-white/[0.06] tracking-wider">${group.title}</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${group.fields.map(f => `
+              <div class="flex items-start">
+                <input id="field_${f.name}" type="checkbox" checked class="field-checkbox mt-1" data-field="${f.name}" />
+                <div class="ml-2">
+                  <label for="field_${f.name}" class="text-sm font-medium text-slate-200">${f.label}</label>
+                  <p class="text-xs text-slate-400">${f.desc}</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('authorFieldGrid').innerHTML = AUTHOR_FIELDS.map(f => `
+        <div class="flex items-start">
+          <input id="afield_${f.name}" type="checkbox" checked class="author-field-checkbox mt-1" data-afield="${f.name}" />
+          <div class="ml-2">
+            <label for="afield_${f.name}" class="text-sm font-medium text-slate-200">${f.label}</label>
+            <p class="text-xs text-slate-400">${f.desc}</p>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function pyBool(value) {
+      return value ? 'True' : 'False';
+    }
+
+    function pyStr(value) {
+      if (!value) return "''";
+      const escaped = String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `'${escaped}'`;
+    }
+
+    function pyListFromLines(text) {
+      const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+      if (lines.length === 0) return '[]';
+      return '[' + lines.map(line => pyStr(line)).join(', ') + ']';
+    }
+
+    function pyListFromArray(arr) {
+      if (!arr || arr.length === 0) return '[]';
+      return '[' + arr.map(item => pyStr(item)).join(', ') + ']';
+    }
+
+    function getMode() {
+      return document.getElementById('MODE_cross').checked ? 'cross' : 'single';
+    }
+
+    function getCrawlerType() {
+      if (getMode() === 'cross') return 'search';
+      const checked = document.querySelector('input[name="CRAWLER_TYPE"]:checked');
+      return checked ? checked.value : 'search';
+    }
+
+    function getSelectedPlatforms() {
+      if (getMode() === 'single') {
+        return [inputs.PLATFORM.value];
+      }
+      const platforms = [];
+      if (document.getElementById('PLAT_CB_dy').checked) platforms.push('dy');
+      if (document.getElementById('PLAT_CB_xhs').checked) platforms.push('xhs');
+      return platforms;
+    }
+
+    function getSelectedFields() {
+      return Array.from(document.querySelectorAll('.field-checkbox:checked')).map(cb => cb.dataset.field);
+    }
+
+    function getSelectedAuthorFields() {
+      return Array.from(document.querySelectorAll('.author-field-checkbox:checked')).map(cb => cb.dataset.afield);
+    }
+
+    function selectAllFields() {
+      document.querySelectorAll('.field-checkbox').forEach(cb => cb.checked = true);
+      updatePreview();
+    }
+
+    function deselectAllFields() {
+      document.querySelectorAll('.field-checkbox').forEach(cb => cb.checked = false);
+      updatePreview();
+    }
+
+    function selectAllAuthorFields() {
+      document.querySelectorAll('.author-field-checkbox').forEach(cb => cb.checked = true);
+      updatePreview();
+    }
+
+    function deselectAllAuthorFields() {
+      document.querySelectorAll('.author-field-checkbox').forEach(cb => cb.checked = false);
+      updatePreview();
+    }
+
+    function updateVisibility() {
+      const mode = getMode();
+      const ctype = getCrawlerType();
+      const platforms = getSelectedPlatforms();
+      const hasDy = platforms.includes('dy');
+      const hasXhs = platforms.includes('xhs');
+
+      document.getElementById('platformSingleBlock').classList.toggle('hidden', mode !== 'single');
+      document.getElementById('platformCrossBlock').classList.toggle('hidden', mode !== 'cross');
+      document.getElementById('crawlerTypeBlock').classList.toggle('hidden', mode !== 'single');
+      document.getElementById('crossSearchNote').classList.toggle('hidden', mode !== 'cross');
+
+      document.getElementById('blockSearch').classList.toggle('hidden', ctype !== 'search');
+      document.getElementById('blockDetail').classList.toggle('hidden', ctype !== 'detail');
+      document.getElementById('blockCreator').classList.toggle('hidden', ctype !== 'creator');
+
+      document.getElementById('publishTimeBlock').classList.toggle('hidden', !hasDy);
+      document.getElementById('xsecHintDetail').classList.toggle('hidden', !hasXhs);
+      document.getElementById('xsecHintCreator').classList.toggle('hidden', !hasXhs);
+      document.getElementById('douyinFieldsCard').classList.toggle('hidden', !hasDy);
+    }
+
+    function collectValues() {
+      const v = {};
+      ids.forEach(id => {
+        const el = inputs[id];
+        if (el.type === 'checkbox') {
+          v[id] = el.checked;
+        } else if (el.type === 'number') {
+          const num = Number(el.value);
+          v[id] = isNaN(num) ? el.value : num;
+        } else {
+          v[id] = el.value;
+        }
+      });
+      v.CRAWLER_TYPE = getCrawlerType();
+      v.SELECTED_EXTRA_FIELDS = getSelectedFields();
+      v.SELECTED_AUTHOR_STAT_FIELDS = getSelectedAuthorFields();
+      v.PLATFORMS = getSelectedPlatforms();
+      return v;
+    }
+
+    function getPreviewPlatform(v) {
+      const sel = document.getElementById('previewPlatform');
+      if (v.PLATFORMS.includes(sel.value)) return sel.value;
+      return v.PLATFORMS[0] || 'dy';
+    }
+
+    function generateConfigs(previewPlatform) {
+      const v = collectValues();
+      const plat = previewPlatform || getPreviewPlatform(v);
+
+      const base = `# MediaCrawler base configuration\n# 由 MediaCrawler 配置工具生成\n\n# 平台选择\nPLATFORM = ${pyStr(plat)}\nCRAWLER_TYPE = ${pyStr(v.CRAWLER_TYPE)}\nLOGIN_TYPE = ${pyStr(v.LOGIN_TYPE)}\n\n# 搜索关键词（逗号分隔）\nKEYWORDS = ${pyStr(v.KEYWORDS)}\n\n# Cookie 登录配置\nCOOKIES = ${pyStr(v.COOKIES)}\n\n# 分页与限制\nSTART_PAGE = ${v.START_PAGE}\nCRAWLER_MAX_NOTES_COUNT = ${v.CRAWLER_MAX_NOTES_COUNT}\nMAX_CONCURRENCY_NUM = ${v.MAX_CONCURRENCY_NUM}\nCRAWLER_MAX_SLEEP_SEC = ${v.CRAWLER_MAX_SLEEP_SEC}\n\n# 输出设置\nSAVE_DATA_OPTION = ${pyStr(v.SAVE_DATA_OPTION)}\nSAVE_DATA_PATH = ${pyStr(v.SAVE_DATA_PATH)}\n\n# 评论\nENABLE_GET_COMMENTS = ${pyBool(v.ENABLE_GET_COMMENTS)}\nENABLE_GET_SUB_COMMENTS = ${pyBool(v.ENABLE_GET_SUB_COMMENTS)}\nCRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = ${v.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES}\n\n# 媒体下载\nENABLE_GET_MEIDAS = ${pyBool(v.ENABLE_GET_MEIDAS)}\n\n# 扩展字段选择（为空列表则不启用，字段含义见字段选择区域）\nSELECTED_EXTRA_FIELDS = ${pyListFromArray(v.SELECTED_EXTRA_FIELDS)}\n\nUSE_WEB_AUTHOR_VERIFICATION = ${pyBool(v.USE_WEB_AUTHOR_VERIFICATION)}
+
+# IP 代理与反检测\nENABLE_IP_PROXY = ${pyBool(v.ENABLE_IP_PROXY)}\nIP_PROXY_POOL_COUNT = ${v.IP_PROXY_POOL_COUNT}\nIP_PROXY_PROVIDER_NAME = ${pyStr(v.IP_PROXY_PROVIDER_NAME)}\nSTATIC_PROXY_URL = ${pyStr(v.STATIC_PROXY_URL)}\n\n# 浏览器行为\nHEADLESS = ${pyBool(v.HEADLESS)}\nSAVE_LOGIN_STATE = ${pyBool(v.SAVE_LOGIN_STATE)}\nENABLE_CDP_MODE = ${pyBool(v.ENABLE_CDP_MODE)}\nCDP_HEADLESS = ${pyBool(v.CDP_HEADLESS)}\nCDP_DEBUG_PORT = ${v.CDP_DEBUG_PORT}\nCUSTOM_BROWSER_PATH = ${pyStr(v.CUSTOM_BROWSER_PATH)}\nCDP_CONNECT_EXISTING = ${pyBool(v.CDP_CONNECT_EXISTING)}\nAUTO_CLOSE_BROWSER = ${pyBool(v.AUTO_CLOSE_BROWSER)}\n\nUSER_DATA_DIR = "%s_user_data_dir"\nDISABLE_SSL_VERIFY = False\n`;
+
+      const dy = `# MediaCrawler 抖音专用配置\n# 由 MediaCrawler 配置工具生成\n\n# 发布时间筛选\nPUBLISH_TIME_TYPE = ${v.PUBLISH_TIME_TYPE}\n\n# detail 模式：指定视频 ID 或链接列表\nDY_SPECIFIED_ID_LIST = ${pyListFromLines(v.DY_SPECIFIED_ID_LIST)}\n\n# creator 模式：指定创作者 ID 或主页链接列表\nDY_CREATOR_ID_LIST = ${pyListFromLines(v.DY_CREATOR_ID_LIST)}\n`;
+
+      const xhs = `# MediaCrawler 小红书专用配置\n# 由 MediaCrawler 配置工具生成\n\n# 搜索排序方式：popularity_descending / latest / most_liked\nSORT_TYPE = "popularity_descending"\n\n# detail 模式：指定笔记链接列表（必须带 xsec_token 参数）\nXHS_SPECIFIED_NOTE_URL_LIST = ${pyListFromLines(v.DY_SPECIFIED_ID_LIST)}\n\n# creator 模式：指定创作者主页链接列表（必须带 xsec_token 和 xsec_source 参数）\nXHS_CREATOR_ID_LIST = ${pyListFromLines(v.DY_CREATOR_ID_LIST)}\n`;
+
+      const platFile = plat === 'xhs' ? 'xhs_config.py' : 'dy_config.py';
+      const platContent = plat === 'xhs' ? xhs : dy;
+      return { base, platFile, platContent, plat, v };
+    }
+
+    function refreshPreviewPlatformOptions(platforms, keepValue) {
+      const sel = document.getElementById('previewPlatform');
+      const wrap = document.getElementById('previewPlatWrap');
+      sel.innerHTML = platforms.map(p => `<option value="${p}">${p}</option>`).join('');
+      if (keepValue && platforms.includes(keepValue)) {
+        sel.value = keepValue;
+      }
+      wrap.classList.toggle('hidden', platforms.length < 2);
+      wrap.classList.toggle('flex', platforms.length >= 2);
+    }
+
+    function updatePreview() {
+      const v = collectValues();
+      const prevPlat = document.getElementById('previewPlatform').value;
+      refreshPreviewPlatformOptions(v.PLATFORMS, prevPlat);
+      const { base, platFile, platContent, plat } = generateConfigs();
+      document.getElementById('baseConfigPreview').textContent = base;
+      document.getElementById('platConfigPreview').textContent = platContent;
+      document.getElementById('platformConfigTitle').textContent = platFile;
+
+      const runCmd = (plat === 'dy' && v.SELECTED_EXTRA_FIELDS.length > 0)
+        ? `uv run web-config-tool/extensions/run_crawler_enriched.py`
+        : `uv run main.py --platform ${plat} --lt ${v.LOGIN_TYPE} --type ${v.CRAWLER_TYPE}`;
+      const prefix = v.PLATFORMS.length > 1 ? `# 平台 ${plat}（共 ${v.PLATFORMS.length} 个，按顺序串行执行）\n` : '';
+      document.getElementById('runCommand').textContent = prefix + runCmd;
+    }
+
+    function appendLog(text, isError = false) {
+      const container = document.getElementById('logContainer');
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.textContent = text;
+      if (isError) line.classList.add('text-red-400');
+      container.appendChild(line);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function setRunning(running) {
+      const runBtn = document.getElementById('runBtn');
+      const stopBtn = document.getElementById('stopBtn');
+      const statusBadge = document.getElementById('statusBadge');
+      const runLabel = runBtn.querySelector('.btn-label');
+      if (running) {
+        runBtn.disabled = true;
+        if (runLabel) runLabel.textContent = '爬虫运行中...';
+        stopBtn.disabled = false;
+        statusBadge.textContent = '状态：运行中';
+        statusBadge.className = 'status-badge status-running';
+      } else {
+        runBtn.disabled = false;
+        if (runLabel) runLabel.textContent = '启动爬虫';
+        stopBtn.disabled = true;
+        statusBadge.textContent = '状态：就绪';
+        statusBadge.className = 'status-badge';
+      }
+    }
+
+    function validateBeforeRun(v) {
+      if (v.PLATFORMS.length === 0) {
+        alert('跨平台搜索模式请至少勾选一个平台。');
+        return false;
+      }
+      if (v.CRAWLER_TYPE === 'detail' && !v.DY_SPECIFIED_ID_LIST.trim()) {
+        alert('detail（指定视频/笔记）模式需要填写「指定视频/笔记 ID 或链接」，每行一个。');
+        return false;
+      }
+      if (v.CRAWLER_TYPE === 'creator' && !v.DY_CREATOR_ID_LIST.trim()) {
+        alert('creator（指定创作者）模式需要填写「指定创作者 ID / 主页链接」，每行一个。');
+        return false;
+      }
+      if (v.PLATFORMS.includes('xhs') && (v.CRAWLER_TYPE === 'detail' || v.CRAWLER_TYPE === 'creator')) {
+        const text = v.CRAWLER_TYPE === 'detail' ? v.DY_SPECIFIED_ID_LIST : v.DY_CREATOR_ID_LIST;
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+        const missing = lines.filter(l => l.indexOf('xsec_token') === -1);
+        if (missing.length > 0) {
+          return confirm(`检测到 ${missing.length} 行链接缺少 xsec_token 参数。\n小红书的 detail/creator 链接必须携带 xsec_token（有效期短），否则爬取会失败。\n\n仍要继续启动吗？`);
+        }
+      }
+      return true;
+    }
+
+    async function startCrawler() {
+      if (currentJobId) {
+        appendLog('[WARN] 已有任务在运行，请先停止。', true);
+        return;
+      }
+
+      const v = collectValues();
+      if (!validateBeforeRun(v)) {
+        return;
+      }
+
+      const container = document.getElementById('logContainer');
+      container.innerHTML = '';
+      appendLog('[INFO] 正在发送启动请求...');
+
+      try {
+        const response = await fetch(`${API_BASE}/api/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(v)
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          appendLog(`[ERROR] 启动失败: ${err.error || response.statusText}`, true);
+          return;
+        }
+
+        const data = await response.json();
+        currentJobId = data.job_id;
+        appendLog(`[INFO] 任务已创建: ${currentJobId}`);
+        appendLog(`[INFO] 临时配置目录: ${data.temp_config_dir}`);
+        setRunning(true);
+
+        connectLogStream(currentJobId);
+      } catch (e) {
+        appendLog(`[ERROR] 网络请求失败: ${e.message}`, true);
+        appendLog('[HINT] 请确认后端服务已启动: python server.py', true);
+      }
+    }
+
+    function connectLogStream(jobId) {
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource(`${API_BASE}/api/logs/${jobId}`);
+      eventSource.onmessage = (event) => {
+        if (event.data) {
+          appendLog(event.data);
+        }
+      };
+
+      eventSource.addEventListener('close', () => {
+        appendLog('[INFO] 日志流已关闭');
+        setRunning(false);
+        currentJobId = null;
+        eventSource.close();
+        eventSource = null;
+      });
+
+      eventSource.onerror = () => {
+        appendLog('[ERROR] 日志流连接异常', true);
+        setRunning(false);
+        currentJobId = null;
+        eventSource.close();
+        eventSource = null;
+      };
+    }
+
+    async function stopCrawler() {
+      if (!currentJobId) return;
+      try {
+        const response = await fetch(`${API_BASE}/api/stop/${currentJobId}`, { method: 'POST' });
+        if (response.ok) {
+          appendLog('[INFO] 已发送停止指令');
+        } else {
+          appendLog('[ERROR] 停止失败', true);
+        }
+      } catch (e) {
+        appendLog(`[ERROR] 停止请求失败: ${e.message}`, true);
+      }
+    }
+
+    // 小红书短链自动展开：失焦时若平台含 xhs 且文本含 xhslink.cn，调后端解析并回填
+    async function resolveXhsLinksOnBlur(textarea) {
+      const text = textarea.value;
+      if (!text || text.indexOf('xhslink.cn') === -1) return;
+      if (!getSelectedPlatforms().includes('xhs')) return;
+      appendLog('[INFO] 检测到小红书短链，正在展开...');
+      try {
+        const response = await fetch(`${API_BASE}/api/resolve_xhs_link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        if (!response.ok) {
+          appendLog('[WARN] 短链展开请求失败，保留原文', true);
+          return;
+        }
+        const data = await response.json();
+        if (typeof data.resolved === 'string' && data.resolved !== text) {
+          textarea.value = data.resolved;
+          appendLog('[INFO] 短链已展开为完整链接');
+          updatePreview();
+          saveState();
+        } else {
+          appendLog('[INFO] 短链未发生变化（可能无法访问或已是最长链接）');
+        }
+      } catch (e) {
+        appendLog(`[WARN] 短链展开失败（保留原文）: ${e.message}`, true);
+      }
+    }
+
+    // ---- localStorage 持久化（300ms 防抖） ----
+    let saveTimer = null;
+    function saveState() {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        try {
+          const state = collectValues();
+          state.MODE = getMode();
+          state.previewPlatform = document.getElementById('previewPlatform').value;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (e) {
+          console.warn('保存向导状态失败:', e);
+        }
+      }, 300);
+    }
+
+    function restoreState() {
+      let state = null;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) state = JSON.parse(raw);
+      } catch (e) {
+        console.warn('读取向导状态失败:', e);
+        return;
+      }
+      if (!state) return;
+
+      document.getElementById('MODE_single').checked = state.MODE !== 'cross';
+      document.getElementById('MODE_cross').checked = state.MODE === 'cross';
+
+      ids.forEach(id => {
+        if (!(id in state)) return;
+        const el = inputs[id];
+        if (el.type === 'checkbox') {
+          el.checked = !!state[id];
+        } else {
+          el.value = state[id];
+        }
+      });
+
+      if (state.CRAWLER_TYPE) {
+        const radio = document.querySelector(`input[name="CRAWLER_TYPE"][value="${state.CRAWLER_TYPE}"]`);
+        if (radio) radio.checked = true;
+      }
+
+      const plats = Array.isArray(state.PLATFORMS) ? state.PLATFORMS : [];
+      document.getElementById('PLAT_CB_dy').checked = plats.includes('dy');
+      document.getElementById('PLAT_CB_xhs').checked = plats.includes('xhs');
+
+      if (Array.isArray(state.SELECTED_EXTRA_FIELDS)) {
+        const selected = new Set(state.SELECTED_EXTRA_FIELDS);
+        document.querySelectorAll('.field-checkbox').forEach(cb => {
+          cb.checked = selected.has(cb.dataset.field);
+        });
+      }
+      if (Array.isArray(state.SELECTED_AUTHOR_STAT_FIELDS)) {
+        const selected = new Set(state.SELECTED_AUTHOR_STAT_FIELDS);
+        document.querySelectorAll('.author-field-checkbox').forEach(cb => {
+          cb.checked = selected.has(cb.dataset.afield);
+        });
+      }
+    }
+
+    // ---- 事件绑定 ----
+    renderFieldGroups();
+    restoreState();
+
+    document.getElementById('resetKeywordsBtn').addEventListener('click', () => {
+      inputs.KEYWORDS.value = DEFAULT_KEYWORDS;
+      updatePreview();
+      saveState();
+    });
+
+    document.getElementById('selectAllFieldsBtn').addEventListener('click', selectAllFields);
+    document.getElementById('deselectAllFieldsBtn').addEventListener('click', deselectAllFields);
+    document.getElementById('selectAllAuthorFieldsBtn').addEventListener('click', selectAllAuthorFields);
+    document.getElementById('deselectAllAuthorFieldsBtn').addEventListener('click', deselectAllAuthorFields);
+
+    document.getElementById('MODE_single').addEventListener('change', () => { updateVisibility(); updatePreview(); saveState(); });
+    document.getElementById('MODE_cross').addEventListener('change', () => { updateVisibility(); updatePreview(); saveState(); });
+    document.getElementById('PLAT_CB_dy').addEventListener('change', () => { updateVisibility(); updatePreview(); saveState(); });
+    document.getElementById('PLAT_CB_xhs').addEventListener('change', () => { updateVisibility(); updatePreview(); saveState(); });
+    document.querySelectorAll('input[name="CRAWLER_TYPE"]').forEach(radio => {
+      radio.addEventListener('change', () => { updateVisibility(); updatePreview(); saveState(); });
+    });
+
+    document.getElementById('previewPlatform').addEventListener('change', () => { updatePreview(); saveState(); });
+
+    ids.forEach(id => {
+      if (inputs[id]) {
+        inputs[id].addEventListener('input', () => {
+          if (id === 'PLATFORM') updateVisibility();
+          updatePreview();
+          saveState();
+        });
+        inputs[id].addEventListener('change', () => {
+          if (id === 'PLATFORM') updateVisibility();
+          updatePreview();
+          saveState();
+        });
+      }
+    });
+
+    document.querySelectorAll('.field-checkbox').forEach(cb => {
+      cb.addEventListener('change', () => { updatePreview(); saveState(); });
+    });
+    document.querySelectorAll('.author-field-checkbox').forEach(cb => {
+      cb.addEventListener('change', () => { updatePreview(); saveState(); });
+    });
+
+    inputs.DY_SPECIFIED_ID_LIST.addEventListener('blur', () => resolveXhsLinksOnBlur(inputs.DY_SPECIFIED_ID_LIST));
+    inputs.DY_CREATOR_ID_LIST.addEventListener('blur', () => resolveXhsLinksOnBlur(inputs.DY_CREATOR_ID_LIST));
+
+    // 「抓取子评论」与「单视频最大评论数」依赖「抓取评论」：关闭时仅视觉上变暗禁用，不改变勾选状态
+    function syncCommentsDependents() {
+      const off = !inputs.ENABLE_GET_COMMENTS.checked;
+      document.querySelectorAll('.js-comments-dep').forEach(el => {
+        el.classList.toggle('dep-dim', off);
+      });
+    }
+    inputs.ENABLE_GET_COMMENTS.addEventListener('change', syncCommentsDependents);
+    syncCommentsDependents();
+
+    document.getElementById('runBtn').addEventListener('click', startCrawler);
+    document.getElementById('stopBtn').addEventListener('click', stopCrawler);
+    document.getElementById('clearLogs').addEventListener('click', () => {
+      document.getElementById('logContainer').innerHTML = '<div class="text-slate-400">等待启动...</div>';
+    });
+
+    document.getElementById('copyRunCommand').addEventListener('click', async () => {
+      const text = document.getElementById('runCommand').textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('copyRunCommand');
+        btn.textContent = '已复制';
+        setTimeout(() => btn.textContent = '复制', 1500);
+      } catch (err) {
+        window.prompt('复制命令:', text);
+      }
+    });
+
+    // 勾选「从浏览器主页提取认证信息」时自动勾上认证相关扩展字段（与经典配置页一致）
+    inputs.USE_WEB_AUTHOR_VERIFICATION.addEventListener('change', function() {
+      if (this.checked) {
+        ['is_verified', 'verification_type', 'enterprise_verify_reason', 'is_enterprise_vip', 'is_gov_media_vip'].forEach(field => {
+          const cb = document.querySelector(`[data-field="${field}"]`);
+          if (cb) cb.checked = true;
+        });
+        updatePreview();
+        saveState();
+      }
+    });
+
+    // Initial render
+    updateVisibility();
+    updatePreview();
+  </script>
+
+  <script>
+  /* ============================================================
+     Motion & Ambience layer — purely ADDITIVE.
+     - Guards window.gsap (CDN failure => page still works 100%).
+     - Guards prefers-reduced-motion (timelines skipped, static CSS stays).
+     - Monkey-patches global fns (updateVisibility / updatePreview /
+       appendLog / connectLogStream) which existing listeners resolve
+       by name at call time — underlying logic never changes.
+     ============================================================ */
+  (function () {
+    'use strict';
+
+    var reduceMotion = false;
+    try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    function gsapOk() { return !reduceMotion && typeof window.gsap !== 'undefined'; }
+
+    function patchGlobal(name, wrapper) {
+      var orig = null;
+      try { orig = window[name]; } catch (e) { return; }
+      if (typeof orig !== 'function') return;
+      window[name] = wrapper(orig);
+    }
+
+    /* ---------- 0. backend health indicator (top nav status dot) ---------- */
+    (function health() {
+      var dot = document.getElementById('backendDot');
+      var txt = document.getElementById('backendStatusText');
+      var wrap = document.getElementById('backendStatus');
+      if (!dot) return;
+      function setState(cls, label, tip) {
+        dot.classList.remove('ok', 'err');
+        if (cls) dot.classList.add(cls);
+        if (txt) txt.textContent = label;
+        if (wrap) wrap.title = tip;
+      }
+      fetch('/api/health')
+        .then(function (r) {
+          if (!r.ok) throw new Error('bad status');
+          setState('ok', '后端已连接', '后端服务正常（/api/health 200）');
+        })
+        .catch(function () {
+          setState('err', '后端未连接', '无法访问 /api/health，请确认已启动 python server.py');
+        });
+    })();
+
+    /* ---------- A. constellation particle canvas ---------- */
+    (function particles() {
+      if (reduceMotion) return;
+      var canvas = document.getElementById('mcParticles');
+      if (!canvas || !canvas.getContext) return;
+      var ctx = canvas.getContext('2d');
+      var W = 0, H = 0, parts = [], running = true, rafId = 0;
+      var mouse = { x: -1e4, y: -1e4 };
+
+      function resize() {
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = window.innerWidth; H = window.innerHeight;
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+
+      var N = Math.max(36, Math.min(56, Math.floor(window.innerWidth / 26)));
+      for (var i = 0; i < N; i++) {
+        parts.push({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * window.innerHeight,
+          vx: (Math.random() - 0.5) * 0.16,
+          vy: (Math.random() - 0.5) * 0.16,
+          r: 0.8 + Math.random() * 1.1
+        });
+      }
+
+      window.addEventListener('pointermove', function (e) {
+        mouse.x = e.clientX; mouse.y = e.clientY;
+      }, { passive: true });
+
+      document.addEventListener('visibilitychange', function () {
+        running = !document.hidden;
+        if (running && !rafId) rafId = requestAnimationFrame(tick);
+      });
+
+      function tick() {
+        rafId = 0;
+        if (!running) return;
+        ctx.clearRect(0, 0, W, H);
+        var i, j, p, dx, dy, d2, d;
+        for (i = 0; i < parts.length; i++) {
+          p = parts[i];
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < -10) p.x = W + 10; else if (p.x > W + 10) p.x = -10;
+          if (p.y < -10) p.y = H + 10; else if (p.y > H + 10) p.y = -10;
+          dx = p.x - mouse.x; dy = p.y - mouse.y; d2 = dx * dx + dy * dy;
+          if (d2 < 14400 && d2 > 1) {
+            d = Math.sqrt(d2);
+            p.x += (dx / d) * 0.35;
+            p.y += (dy / d) * 0.35;
+          }
+        }
+        ctx.lineWidth = 1;
+        for (i = 0; i < parts.length; i++) {
+          for (j = i + 1; j < parts.length; j++) {
+            dx = parts[i].x - parts[j].x;
+            dy = parts[i].y - parts[j].y;
+            d2 = dx * dx + dy * dy;
+            if (d2 < 12100) {
+              ctx.strokeStyle = 'rgba(103,232,249,' + ((1 - Math.sqrt(d2) / 110) * 0.10).toFixed(3) + ')';
+              ctx.beginPath();
+              ctx.moveTo(parts[i].x, parts[i].y);
+              ctx.lineTo(parts[j].x, parts[j].y);
+              ctx.stroke();
+            }
+          }
+        }
+        ctx.fillStyle = 'rgba(103,232,249,0.55)';
+        for (i = 0; i < parts.length; i++) {
+          p = parts[i];
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, 6.2832);
+          ctx.fill();
+        }
+        rafId = requestAnimationFrame(tick);
+      }
+      rafId = requestAnimationFrame(tick);
+    })();
+
+    /* ---------- C. mouse-follow spotlight (rAF-throttled, viewport-gated) ---------- */
+    var glassCards = Array.prototype.slice.call(document.querySelectorAll('.glass-card'));
+    // conic ring element for the active-step rotating border
+    glassCards.forEach(function (c) {
+      var ring = document.createElement('div');
+      ring.className = 'conic-ring';
+      ring.setAttribute('aria-hidden', 'true');
+      c.appendChild(ring);
+    });
+
+    if (!reduceMotion) {
+      var visibleCards = new Set(glassCards);
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) visibleCards.add(en.target);
+            else visibleCards.delete(en.target);
+          });
+        }, { rootMargin: '80px' });
+        glassCards.forEach(function (c) { io.observe(c); });
+      }
+      var spotRaf = 0, lastEvt = null;
+      document.addEventListener('pointermove', function (e) {
+        lastEvt = e;
+        if (!spotRaf) spotRaf = requestAnimationFrame(applySpot);
+      }, { passive: true });
+      function applySpot() {
+        spotRaf = 0;
+        var e = lastEvt;
+        if (!e) return;
+        visibleCards.forEach(function (card) {
+          var r = card.getBoundingClientRect();
+          card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+          card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+          var near = e.clientX >= r.left - 48 && e.clientX <= r.right + 48 &&
+                     e.clientY >= r.top - 48 && e.clientY <= r.bottom + 48;
+          card.classList.toggle('spot-on', near);
+        });
+      }
+    }
+
+    /* ---------- D. step progression + sidebar stepper + summary chips ---------- */
+    var stepCards = Array.prototype.slice.call(document.querySelectorAll('main section > .glass-card'));
+    var stepNavItems = Array.prototype.slice.call(document.querySelectorAll('#stepNav .step-nav-item'));
+    var stepNums = ['1', '2', '3', '4', '5'];
+    var prevDone = [false, false, false, false, false];
+    var touched = { mode: false, plat: false, ctype: false, kw: false, data: false, adv: false };
+
+    var PLAT_LABELS = { dy: '抖音', xhs: '小红书', ks: '快手', bili: 'B站', wb: '微博', tieba: '贴吧', zhihu: '知乎' };
+    var CTYPE_LABELS = { search: '关键词搜索', detail: '指定视频/笔记', creator: '指定创作者' };
+
+    function touch(flag) {
+      touched[flag] = true;
+      recomputeSteps();
+    }
+    document.getElementById('MODE_single').addEventListener('change', function () { touch('mode'); });
+    document.getElementById('MODE_cross').addEventListener('change', function () { touch('mode'); });
+    document.getElementById('PLATFORM').addEventListener('change', function () { touch('plat'); });
+    document.getElementById('PLAT_CB_dy').addEventListener('change', function () { touch('plat'); });
+    document.getElementById('PLAT_CB_xhs').addEventListener('change', function () { touch('plat'); });
+    document.querySelectorAll('input[name="CRAWLER_TYPE"]').forEach(function (r) {
+      r.addEventListener('change', function () { touch('ctype'); });
+    });
+    document.getElementById('KEYWORDS').addEventListener('input', function () { touch('kw'); });
+    document.getElementById('DY_SPECIFIED_ID_LIST').addEventListener('input', function () { recomputeSteps(); });
+    document.getElementById('DY_CREATOR_ID_LIST').addEventListener('input', function () { recomputeSteps(); });
+    if (stepCards[3]) {
+      stepCards[3].addEventListener('change', function () { touch('data'); });
+      stepCards[3].addEventListener('click', function (e) {
+        if (e.target && e.target.tagName === 'BUTTON') touch('data');
+      });
+    }
+    var advDetails = document.getElementById('advancedDetails');
+    if (advDetails) {
+      advDetails.addEventListener('toggle', function () {
+        if (advDetails.open) touch('adv');
+      });
+    }
+
+    // sidebar click -> smooth scroll to the matching step card
+    stepNavItems.forEach(function (btn, i) {
+      btn.addEventListener('click', function () {
+        var card = stepCards[i];
+        if (!card) return;
+        if (i === 4) {
+          var det = document.getElementById('advancedDetails');
+          if (det && !det.open) det.open = true;
+        }
+        card.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      });
+    });
+
+    function setSnStatus(i, text) {
+      var el = document.querySelector('[data-sn-status="' + i + '"]');
+      if (el && el.textContent !== text) el.textContent = text;
+    }
+
+    function syncSidebarAndChips(done, activeIdx) {
+      stepNavItems.forEach(function (btn, i) {
+        btn.classList.toggle('is-done', !!done[i]);
+        btn.classList.toggle('is-current', i === activeIdx && !done[i]);
+      });
+
+      var mode = 'single', ctype = 'search', plats = [];
+      try { mode = getMode(); } catch (e) {}
+      try { ctype = getCrawlerType(); } catch (e) {}
+      try { plats = getSelectedPlatforms(); } catch (e) {}
+      var platText = plats.length ? plats.map(function (p) { return PLAT_LABELS[p] || p; }).join(' · ') : '未选择';
+      var ctypeText = CTYPE_LABELS[ctype] || ctype;
+      var commentsOn = document.getElementById('ENABLE_GET_COMMENTS');
+      var mediaOn = document.getElementById('ENABLE_GET_MEIDAS');
+
+      setSnStatus(0, mode === 'cross' ? '跨平台搜索' : '单平台');
+      setSnStatus(1, platText);
+      setSnStatus(2, ctypeText);
+      setSnStatus(3, '评论·' + (commentsOn && commentsOn.checked ? '开' : '关') + ' 媒体·' + (mediaOn && mediaOn.checked ? '开' : '关'));
+      setSnStatus(4, touched.adv ? '已展开' : '默认');
+
+      var chipMode = document.getElementById('chipMode');
+      var chipPlat = document.getElementById('chipPlat');
+      var chipType = document.getElementById('chipType');
+      if (chipMode) chipMode.textContent = mode === 'cross' ? '跨平台搜索' : '单平台';
+      if (chipPlat) chipPlat.textContent = platText;
+      if (chipType) chipType.textContent = ctypeText;
+    }
+
+    function computeDoneArray() {
+      var ctype = 'search';
+      try { ctype = getCrawlerType(); } catch (e) {}
+      var det = (document.getElementById('DY_SPECIFIED_ID_LIST').value || '').trim();
+      var cre = (document.getElementById('DY_CREATOR_ID_LIST').value || '').trim();
+      var d3 = touched.ctype ||
+        (ctype === 'search' && touched.kw) ||
+        (ctype === 'detail' && det.length > 0) ||
+        (ctype === 'creator' && cre.length > 0);
+      return [touched.mode, touched.plat, d3, touched.data, touched.adv];
+    }
+
+    function recomputeSteps() {
+      var done = computeDoneArray();
+      var activeIdx = -1;
+      for (var i = 0; i < 5; i++) { if (!done[i]) { activeIdx = i; break; } }
+      if (activeIdx === -1) activeIdx = 4;
+      stepCards.forEach(function (card, i) {
+        var badge = card.querySelector('.step-badge');
+        var isDone = done[i];
+        card.classList.toggle('step-done', isDone);
+        card.classList.toggle('step-current', i === activeIdx && !isDone);
+        if (badge) {
+          var target = isDone ? '✓' : stepNums[i];
+          if (badge.textContent !== target) {
+            badge.textContent = target;
+            if (isDone && !prevDone[i] && gsapOk()) {
+              window.gsap.fromTo(badge,
+                { scale: 0.3, rotation: -120 },
+                { scale: 1, rotation: 0, duration: 0.55, ease: 'back.out(2.2)', clearProps: 'transform' });
+            }
+          }
+        }
+      });
+      var fill = document.getElementById('mcProgressFill');
+      if (fill) {
+        var n = 0;
+        done.forEach(function (d) { if (d) n++; });
+        fill.style.width = (n / 5 * 100) + '%';
+      }
+      syncSidebarAndChips(done, activeIdx);
+      prevDone = done;
+    }
+
+    /* ---------- B. boot-up entrance choreography ---------- */
+    if (gsapOk()) {
+      try {
+        var tl = window.gsap.timeline({ defaults: { ease: 'power3.out' } });
+        tl.from('#topbar', { y: -22, opacity: 0, duration: 0.38, clearProps: 'transform,opacity' })
+          .from('.page-head-inner', { y: 14, opacity: 0, duration: 0.35, clearProps: 'transform,opacity' }, '-=0.16')
+          .from('#stepNav .step-nav-item', {
+            x: -16, opacity: 0, duration: 0.3, stagger: 0.05,
+            clearProps: 'transform,opacity'
+          }, '-=0.14')
+          .from('main section > .glass-card', {
+            y: 26, opacity: 0, filter: 'blur(6px)',
+            duration: 0.42, stagger: 0.08,
+            clearProps: 'transform,opacity,filter'
+          }, '-=0.16')
+          .from('main aside > .glass-card', {
+            x: 44, opacity: 0, duration: 0.48,
+            clearProps: 'transform,opacity'
+          }, '-=0.30')
+          .from('.step-badge', {
+            scale: 0, duration: 0.38, stagger: 0.055,
+            ease: 'back.out(2.4)', clearProps: 'transform'
+          }, '-=0.30')
+          .from('footer', { opacity: 0, duration: 0.35, clearProps: 'opacity' }, '-=0.25');
+      } catch (e) { /* entrance is decorative; never leave elements hidden */ }
+    }
+    recomputeSteps();
+
+    /* ---------- E. section transitions (wrap updateVisibility) ---------- */
+    var watchedBlocks = [
+      'blockSearch', 'blockDetail', 'blockCreator',
+      'platformSingleBlock', 'platformCrossBlock',
+      'crawlerTypeBlock', 'crossSearchNote',
+      'douyinFieldsCard', 'publishTimeBlock',
+      'xsecHintDetail', 'xsecHintCreator'
+    ];
+    patchGlobal('updateVisibility', function (orig) {
+      return function () {
+        var before = {};
+        watchedBlocks.forEach(function (id) {
+          var el = document.getElementById(id);
+          before[id] = !!(el && !el.classList.contains('hidden'));
+        });
+        var ret = orig.apply(this, arguments);
+        if (gsapOk()) {
+          watchedBlocks.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var now = !el.classList.contains('hidden');
+            if (before[id] && !now) {
+              // animate out: fade + rise + blur + collapse, then restore .hidden
+              el.classList.remove('hidden');
+              window.gsap.to(el, {
+                opacity: 0, y: -8, filter: 'blur(4px)', height: 0,
+                duration: 0.18, ease: 'power2.in', overwrite: 'auto',
+                onComplete: function () {
+                  el.classList.add('hidden');
+                  window.gsap.set(el, { clearProps: 'all' });
+                }
+              });
+            } else if (!before[id] && now) {
+              // animate in: fade + settle + sharpen
+              window.gsap.fromTo(el,
+                { opacity: 0, y: 12, filter: 'blur(4px)' },
+                { opacity: 1, y: 0, filter: 'blur(0px)', height: 'auto',
+                  duration: 0.32, ease: 'power2.out', delay: 0.06,
+                  overwrite: 'auto', clearProps: 'all' });
+            }
+          });
+        }
+        recomputeSteps();
+        return ret;
+      };
+    });
+
+    /* ---------- H. preview regenerated shimmer (wrap updatePreview, throttled) ---------- */
+    var lastFlash = 0;
+    function flashPanel(el) {
+      if (!el) return;
+      el.classList.remove('panel-flash');
+      void el.offsetWidth; // restart CSS animation
+      el.classList.add('panel-flash');
+    }
+    patchGlobal('updatePreview', function (orig) {
+      return function () {
+        var ret = orig.apply(this, arguments);
+        recomputeSteps();
+        if (!reduceMotion) {
+          var now = performance.now();
+          if (now - lastFlash > 700) {
+            lastFlash = now;
+            flashPanel(document.getElementById('baseConfigPreview'));
+            flashPanel(document.getElementById('platConfigPreview'));
+          }
+        }
+        return ret;
+      };
+    });
+
+    /* ---------- G. log lines slide-fade in + SSE boot sequence ---------- */
+    var logStamps = [];
+    patchGlobal('appendLog', function (orig) {
+      return function (text, isError) {
+        var ret = orig.apply(this, arguments);
+        if (gsapOk()) {
+          var now = performance.now();
+          logStamps.push(now);
+          while (logStamps.length && now - logStamps[0] > 1000) logStamps.shift();
+          if (logStamps.length <= 20) { // skip animation under high-frequency bursts
+            var c = document.getElementById('logContainer');
+            var last = c && c.lastElementChild;
+            if (last && last.classList.contains('log-line')) {
+              window.gsap.fromTo(last,
+                { opacity: 0, y: 6 },
+                { opacity: 1, y: 0, duration: 0.22, ease: 'power1.out', overwrite: 'auto' });
+            }
+          }
+        }
+        return ret;
+      };
+    });
+
+    patchGlobal('connectLogStream', function (orig) {
+      return function (jobId) {
+        if (!reduceMotion) {
+          appendLog('● 连接日志流 …');
+          setTimeout(function () { appendLog('● 通道已建立，等待爬虫输出 …'); }, 180);
+        }
+        return orig.apply(this, arguments);
+      };
+    });
+
+    /* ---------- F. micro-interactions ---------- */
+    // run button: click ripple
+    var runBtn = document.getElementById('runBtn');
+    if (runBtn && !reduceMotion) {
+      runBtn.addEventListener('click', function (e) {
+        if (runBtn.disabled) return;
+        var rect = runBtn.getBoundingClientRect();
+        var s = document.createElement('span');
+        s.className = 'mc-ripple';
+        var size = Math.max(rect.width, rect.height);
+        s.style.width = size + 'px';
+        s.style.height = size + 'px';
+        s.style.left = (e.clientX - rect.left - size / 2) + 'px';
+        s.style.top = (e.clientY - rect.top - size / 2) + 'px';
+        runBtn.appendChild(s);
+        setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 650);
+      });
+    }
+    // run button: animated gradient while running (hook existing status changes)
+    var statusBadge = document.getElementById('statusBadge');
+    if (runBtn && statusBadge && 'MutationObserver' in window) {
+      new MutationObserver(function () {
+        runBtn.classList.toggle('btn-running', statusBadge.classList.contains('status-running'));
+      }).observe(statusBadge, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    // checkboxes/radios: springy scale pop; tiles pop their inner surface; toggles pop their track
+    if (gsapOk()) {
+      document.addEventListener('change', function (e) {
+        var t = e.target;
+        if (!t || (t.type !== 'checkbox' && t.type !== 'radio')) return;
+        var g = window.gsap;
+        if (t.classList.contains('sr-only')) {
+          var inner = t.nextElementSibling;
+          if (inner && (inner.classList.contains('mode-inner') || inner.classList.contains('seg-tile') || inner.classList.contains('toggle-track'))) {
+            g.fromTo(inner, { scale: 1 }, { scale: 1.04, duration: 0.16, ease: 'power2.out', yoyo: true, repeat: 1, clearProps: 'transform' });
+          }
+        } else {
+          g.fromTo(t, { scale: 1 }, { scale: 1.45, duration: 0.13, ease: 'power2.out', yoyo: true, repeat: 1, clearProps: 'transform' });
+        }
+      }, true);
+    }
+
+    // 全选/取消全选: checkbox wave
+    function waveCheckboxes(selector) {
+      if (!gsapOk()) return;
+      var cbs = Array.prototype.slice.call(document.querySelectorAll(selector));
+      if (!cbs.length) return;
+      window.gsap.fromTo(cbs, { scale: 1 }, {
+        scale: 1.45, duration: 0.14, ease: 'power2.out',
+        yoyo: true, repeat: 1, stagger: 0.035, clearProps: 'transform'
+      });
+    }
+    var btnSAF = document.getElementById('selectAllFieldsBtn');
+    var btnDSAF = document.getElementById('deselectAllFieldsBtn');
+    var btnSAA = document.getElementById('selectAllAuthorFieldsBtn');
+    var btnDSAA = document.getElementById('deselectAllAuthorFieldsBtn');
+    if (btnSAF) btnSAF.addEventListener('click', function () { waveCheckboxes('.field-checkbox'); });
+    if (btnDSAF) btnDSAF.addEventListener('click', function () { waveCheckboxes('.field-checkbox'); });
+    if (btnSAA) btnSAA.addEventListener('click', function () { waveCheckboxes('.author-field-checkbox'); });
+    if (btnDSAA) btnDSAA.addEventListener('click', function () { waveCheckboxes('.author-field-checkbox'); });
+  })();
+  </script>
+</body>
+</html>
